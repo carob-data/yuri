@@ -1,17 +1,17 @@
-\name{get_data}
+\name{dataURI}
 
-\alias{get_data}
+\alias{dataURI}
 
 \title{
-Download a data set
+Get a data set
 }
 
 \description{
-Download the files associated with a URI. 
+Download the files associated with a URI and return the filenames. 
 }
 
 \usage{
-get_data(uri, path, cache=TRUE, unzip=TRUE)
+dataURI(uri, path, cache=TRUE, unzip=TRUE)
 }
  
 \arguments{

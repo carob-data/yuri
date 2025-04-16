@@ -4,43 +4,6 @@
 # license 	
 
 
-simple_uri <- function(uri, reverse=FALSE) {
-  
-	if (reverse) {
-		if (grepl(":", uri)) {
-			return(gsub("_", "/", uri))
-		} else {
-			return(gsub("_", "/", sub("_", ":", uri))	)
-		}
-	}
-	
-	ur <- .removeprotocol(uri)
-	if (grepl("dx.doi.org/", ur)) {
-		u <- gsub("dx.doi.org/", "", ur)
-		u <- paste0("doi_", u)
-	} else if (grepl("doi.org/", ur)) {
-		u <- gsub("doi.org/", "", ur)
-		u <- paste0("doi_", u)
-	} else if (grepl("persistentId=doi:", ur)) {
-		u <- unlist(strsplit(ur, "persistentId=doi:"))[2]
-		u <- paste0("doi_", u)
-	} else if (grepl("^doi:", ur)) {
-		u <- gsub("^doi:", "doi_", ur)		
-	} else if (grepl("persistentId=hdl:", ur)) {
-		u <- unlist(strsplit(ur, "persistentId=hdl:"))[2]
-		u <- paste0("hdl_", u)
-	} else if (grepl("^hdl:", ur)) {
-		u <- gsub("^hdl:", "hdl_", ur)		
-	} else if (grepl("hdl.handle.net/", ur)) {
-		u <- gsub("hdl.handle.net/", "", ur)
-		u <- paste0("hdl_", u)
-	} else {
-		stop(paste0("Not a valid object identifier (DOI or HDL)"))
-	}
-	gsub("/", "_", u)
-}
-
-
 filter_files <- function(x) { 
 	x <- grep("\\.json$|ok\\.txt$|\\.pdf$|_files.txt$|\\.zip$|\\.doc$|\\.docx$", x, value=TRUE, invert=TRUE)
 	# remove opened excel files
@@ -50,35 +13,6 @@ filter_files <- function(x) {
 
 writeOK <- function(path, uu) {
 	writeLines(c(utils::timestamp(quiet=TRUE), uu), file.path(path, "ok.txt"))
-}
-
-
-.dataverse_unzip <- function(zipf, path, unzip) {
-	allf <- NULL
-	for (z in zipf) {
-		zf <- utils::unzip(z, list=TRUE)
-		zf <- zf$Name[zf$Name != "MANIFEST.TXT"]
-		zf <- grep("/$", zf, invert=TRUE, value=TRUE)
-		allf <- c(allf, zf)
-		if (unzip) {
-			ff <- list.files(path, recursive=TRUE, include.dirs=TRUE)
-			there <- (zf %in% ff)
-			if (!all(there)) {
-				utils::unzip(z, zf[!there], exdir = path)
-				## zipfiles in zipfile...
-				zipzip <- grep("\\.zip$", zf[!there], ignore.case=TRUE, value=TRUE)
-				if (length(zipzip) > 0) {
-					zipzip <- file.path(path, zipzip)
-					for (zz in zipzip) {
-						utils::unzip(zz, exdir = path)
-					}
-					allf <- c(allf, utils::unzip(zz, list=TRUE))
-				}
-			}
-		}
-	}
-	ff <- filter_files(allf) 
-	file.path(path, ff)
 }
 
 
@@ -178,17 +112,14 @@ writeOK <- function(path, uu) {
 			i <- i + 1
 		}
 	}	
-	ff <- .dataverse_unzip(zipf, path, unzip)
-	f7 <- list.files(path, pattern="\\.7z$", full.names=TRUE)
-	if (length(f7) > 0) {
-		for (f in f7) {
-			fext <- archive::archive_extract(f, path)
-			ff <- c(ff, file.path(path, fext))
-		}
-		ff <- ff[!(ff %in% f7)]
+	if (unzip) {
+		ff <- .dataverse_unzip(zipf, path)
+		f7 <- list.files(path, pattern="\\.7z$", full.names=TRUE)
+		ff <- .dataverse_unzip(f7, path)
 	}
+
 	writeOK(path, uu)
-	ff
+	list.files(file.path(path), full.names = TRUE)
 }
 
 
@@ -347,7 +278,6 @@ writeOK <- function(path, uu) {
 
 .getdomain <- function(x) strsplit(gsub("http://|https://|www\\.", "", x), "/")[[c(1, 1)]]
 .getprotocol <- function(x) paste0(strsplit(x, "/")[[c(1, 1)]], "//")
-.removeprotocol <- function(x) gsub("http://|https://|www\\.", "", x)
 
 
 http_address <- function(uri) {
@@ -359,12 +289,9 @@ http_address <- function(uri) {
 }
 
 
+dataURI <- function(uri, path, cache=TRUE, unzip=TRUE) {
 
-
-
-get_data <- function(uri, path, cache=TRUE, unzip=TRUE) {
-
-	uname <- simple_uri(uri)
+	uname <- simpleURI(uri)
 	#uripath=TRUE
 	#if (uripath) 
 	path <- file.path(path, uname)
@@ -383,7 +310,7 @@ get_data <- function(uri, path, cache=TRUE, unzip=TRUE) {
 	zipf <- file.path(path, paste0(uname, ".zip"))
 	if (cache & file.exists(zipf)) {
 		zipf <- list.files(path, paste0(uname, ".*zip$"), full.names=TRUE)		
-		return(.dataverse_unzip(zipf, path, unzip))
+		return(filer_files(.dataverse_unzip(zipf, path, unzip)))
 	}
 
 	uri <- http_address(uri)
@@ -407,8 +334,8 @@ get_data <- function(uri, path, cache=TRUE, unzip=TRUE) {
 		return()
 	}
 	u <- x$url
-	domain <- .getdomain(u)
-	protocol <- .getprotocol(u)
+	domain <- yuri:::.getdomain(u)
+	protocol <- yuri:::.getprotocol(u)
 	baseu <- paste0(protocol, domain)
 
 	if (grepl("/stash/|datadryad", u)) {	

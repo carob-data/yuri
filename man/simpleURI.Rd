@@ -1,7 +1,7 @@
-\name{simple_uri}
+\name{simpleURI}
 
 
-\alias{simple_uri}
+\alias{simpleURI}
 
 \title{
 Clean an URI so that it can be used as a folder name
@@ -13,7 +13,7 @@ Replace "/" and ":" in an URI with "_" so that they can be used as filenames
 
 
 \usage{
-simple_uri(uri, reverse=FALSE)
+simpleURI(uri, reverse=FALSE)
 }
  
 \arguments{
@@ -28,9 +28,9 @@ character
 
 \examples{
 uri <- "doi:10.7910/DVN/UNLRGC"
-u <- simple_uri(uri)
+u <- simpleURI(uri)
 u
-simple_uri(u, reverse=TRUE)
+simpleURI(u, reverse=TRUE)
 }
 
 

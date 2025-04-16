@@ -9,7 +9,7 @@ Encoding: UTF-8
 Authors@R: c(
 	person("Robert J.", "Hijmans", role = c("cre", "aut"),  email = "r.hijmans@gmail.com"),
 	person("Eduardo", "Bendito Garcia", role = "ctb")
-)
+	)
 Maintainer: Robert J. Hijmans <r.hijmans@gmail.com> 
 License: GPL (>=3)
 
