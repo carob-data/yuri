@@ -310,7 +310,7 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE) {
 	zipf <- file.path(path, paste0(uname, ".zip"))
 	if (cache & file.exists(zipf)) {
 		zipf <- list.files(path, paste0(uname, ".*zip$"), full.names=TRUE)		
-		return(filer_files(.dataverse_unzip(zipf, path, unzip)))
+		return(filter_files(.dataverse_unzip(zipf, path, unzip)))
 	}
 
 	uri <- http_address(uri)
@@ -334,8 +334,8 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE) {
 		return()
 	}
 	u <- x$url
-	domain <- yuri:::.getdomain(u)
-	protocol <- yuri:::.getprotocol(u)
+	domain <- .getdomain(u)
+	protocol <- .getprotocol(u)
 	baseu <- paste0(protocol, domain)
 
 	if (grepl("/stash/|datadryad", u)) {	
