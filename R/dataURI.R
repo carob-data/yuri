@@ -343,7 +343,7 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE) {
 	} else if (grepl("rothamsted", u)) {
 		ff <- .download_rothamsted_files(u, path, uname, unzip)
 	} else if (grepl("/dataset/", u)) {	
-		ff <- .download_ckan_files(u, baseu, path, uname)
+		ff <- .download_ckan_files(u, baseu, path, uname, unzip)
 	} else if (grepl("zenodo", u)) {
 		ff <- .download_zenodo_files(u, path, uname, unzip)
 	} else {
