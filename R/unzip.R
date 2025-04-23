@@ -1,5 +1,5 @@
 
-.dataverse_unzip <- function(files, path, unzip) {
+.dataverse_unzip <- function(files, path, unzip_more=TRUE) {
 	allf <- NULL
 	files <- files[file.exists(files)]
 	i <- grepl("zip$", files, ignore.case=TRUE)
@@ -10,7 +10,7 @@
 			zf <- zf$Name[zf$Name != "MANIFEST.TXT"]
 			zf <- grep("/$", zf, invert=TRUE, value=TRUE)
 			allf <- c(allf, zf)
-			if (unzip) {
+			if (unzip_more) {
 				ff <- list.files(path, recursive=TRUE, include.dirs=TRUE)
 				there <- (zf %in% ff)
 				if (!all(there)) {
