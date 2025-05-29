@@ -1,14 +1,14 @@
 Package: yuri
 Type: Package
-Title: Download data with from an URI
-Description: Download data with an URI such as a DOI or HDL. Intended to work with dataverse, dryad, zenodo, and CKAN APIs.
-Version: 0.0-1
+Title: Download reserach data
+Description: Download research data with an URI such as a DOI or HDL. Intended to work with Dataverse, Dryad, Zenodo, and CKAN APIs such that the data can be included into reproducible workflows.
+Version: 0.1-0
 Imports: httr, archive, jsonlite
-Date: 2025-04-16
+Date: 2025-05-29
 Encoding: UTF-8
 Authors@R: c(
 	person("Robert J.", "Hijmans", role = c("cre", "aut"),  email = "r.hijmans@gmail.com"),
-	person("Eduardo", "Bendito Garcia", role = "ctb")
+	person("Eduardo", "Bendito Garcia", role = "aut")
 	)
 Maintainer: Robert J. Hijmans <r.hijmans@gmail.com> 
 License: GPL (>=3)
