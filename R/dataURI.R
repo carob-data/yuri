@@ -119,7 +119,7 @@ writeOK <- function(path, uu) {
 	}
 
 	writeOK(path, uu)
-	list.files(file.path(path), full.names = TRUE)
+	list.files(file.path(path), full.names = TRUE, recursive=TRUE)
 }
 
 
