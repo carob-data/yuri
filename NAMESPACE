@@ -1,1 +1,4 @@
-export(dataURI, simpleURI)
+export(
+dataURI, simpleURI,
+read_metadata, extract_metadata
+)

@@ -213,7 +213,7 @@ writeOK <- function(path, uu) {
 	writeLines(meta, file.path(path, paste0(uname, ".json")))
 	js <- jsonlite::fromJSON(meta)
 	# d <- js$links$download
-	d <- js$files$links |> unlist()
+	d <- unlist(js$files$links)
 	d <- gsub("/draft", "", d)
 	done <- TRUE
 	files <- ""[0]
