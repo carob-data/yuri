@@ -175,8 +175,10 @@ get_description <- function(x) {
 	}
 	if (is.null(out)) {
 		#dryad
-		out <- gsub("<p>|</p>", "", x$abstract)
-		if (nchar(out) < 2) out <- NULL
+		out <- x$abstract
+		if (length(out) == 0) {
+			out <- NULL
+		}
 	}
 	if (is.null(out)) {
 		#zenodo
