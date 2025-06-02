@@ -2,7 +2,7 @@ Package: yuri
 Type: Package
 Title: Download reserach data
 Description: Download research data with an URI such as a DOI or HDL. Intended to work with Dataverse, Dryad, Zenodo, and CKAN APIs such that the data can be included into reproducible workflows.
-Version: 0.1-1
+Version: 0.1-2
 Imports: httr, archive, jsonlite
 Date: 2025-06-01
 Encoding: UTF-8
