@@ -138,7 +138,7 @@ get_title <- function(x) {
 		out <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]
 	} else  {
 		# ckan, zenodo, dryad/Rothamsted
-		out <- c(x$result$title, x$metadata$title, x$title)
+		out <- c(x$result$title, x$metadata$title, x$title)[1]
 	}
 	if (is.null(out)) {
 		as.character(NA)
@@ -166,7 +166,8 @@ get_description <- function(x) {
 	out <- gsub("\u201D", "'", out)
 	out <- gsub("\u2018", "'", out)
 	out <- gsub("\u2019", "'", out)
-	gsub("<p>|</p>", "'", out)
+	out <- gsub("\u2019", "'", out)
+	gsub("<p>|</p>", "", out)
 }
 
 
