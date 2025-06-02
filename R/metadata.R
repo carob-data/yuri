@@ -19,16 +19,19 @@ read_metadata <- function(uri, path) {
 
 get_version <- function(x) {
 	v <- x$data$latestVersion$versionNumber 
+	if (!is.null(v)) {
+		minor <- x$data$latestVersion$versionMinorNumber 
+		if (!is.null(minor)) {
+			v <- paste0(v, ".", minor)
+		}
+	}
 	if (is.null(v)) {
 		v <- x$versionNumber 
 	}
 	if (is.null(v)) {
 		v <- x$revision
 	}
-	if (!is.null(v)) {
-		minor <- x$data$latestVersion$versionMinorNumber 
-		v <- paste0(v, ".", minor)
-	} else { # ckan
+	if (is.null(v)) {
 		v <- x$result$version
 	}
 	if (is.null(v)) {
