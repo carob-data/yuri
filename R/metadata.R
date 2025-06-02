@@ -24,15 +24,9 @@ get_version <- function(x) {
 		if (!is.null(minor)) {
 			v <- paste0(v, ".", minor)
 		}
-	}
-	if (is.null(v)) {
-		v <- x$versionNumber 
-	}
-	if (is.null(v)) {
-		v <- x$revision
-	}
-	if (is.null(v)) {
-		v <- x$result$version
+	} else {
+		# only one could be not NULL
+		v <- c(x$versionNumber, x$revision, x$result$version)
 	}
 	if (is.null(v)) {
 		v <- as.character(NA)
@@ -142,23 +136,15 @@ get_title <- function(x) {
 	out <- NULL
 	if (length(i) > 0) {
 		out <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]
-	}
-	if (is.null(out)) { 
-		#ckan
-		out <- x$result$title
-	}
-	if (is.null(out)) {
-		#zenodo
-		out <- x$metadata$title
-	}
-	if (is.null(out)) { 
-		# dryad; Rothamsted
-		out <- x$title
+	} else  {
+		# ckan, zenodo, dryad/Rothamsted
+		out <- c(x$result$title, x$metadata$title, x$title)
 	}
 	if (is.null(out)) {
-		out <- as.character(NA)
+		as.character(NA)
+	} else {
+		out
 	}
-	out
 }
 
 
@@ -170,28 +156,12 @@ get_description <- function(x) {
 		out <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]][[1]]$value
 	}
 	if (is.null(out)) {
-		#ckan
-		out <- x$result$notes
+		#ckan, zenodo, Rothamsted, dryad
+		out <- c(x$result$notes, x$metadata$description, x$description, x$abstract)
 	}
 	if (is.null(out)) {
-		#dryad
-		out <- x$abstract
-		if (length(out) == 0) {
-			out <- NULL
-		}
-	}
-	if (is.null(out)) {
-		#zenodo
-		out <- x$metadata$description
-	}
-	if (is.null(out)) {
-		#rothamsted
-		out <- x$description
-	}
-	if (is.null(out)) {
-		out <- as.character(NA)
-	}
-	
+		return(as.character(NA))
+	}	
 	out <- gsub("\u201C", "'", out)
 	out <- gsub("\u201D", "'", out)
 	out <- gsub("\u2018", "'", out)
@@ -217,21 +187,19 @@ get_authors <- function(x) {
 			out <- c(out, add)
 		}
 	}
-	#zenodo
+	#zenodo, Rothamsted
 	if (is.null(out)) {
-		out <- x$metadata$creators$name
+		out <- c(x$metadata$creators$name, x$contributors$title)
 	}
 	#dryad 
 	if (is.null(out)) {
 		out <- x$authors
-		out <- paste0(out$lastName, ", ", out$firstName)
-	}
-	#Rothamsted
-	if (is.null(out)) {
-		out <- x$contributors$title
+		if (!is.null(out)) {
+			out <- paste0(out$lastName, ", ", out$firstName)
+		}
 	}
 	if (is.null(out)) {
-		out <- as.character(NA)
+		return(as.character(NA))
 	}
 	paste(out, collapse="; ")
 }
@@ -248,7 +216,6 @@ extract_metadata <- function(uri, path) {
 	}
 
 	authors <- get_authors(js)
-	auth <- paste(authors, collapse="; ")
 	titl <- gsub("\\.\\.$", ".", paste0(get_title(js), "."))
 
 	pubdate <- c(js$data$publicationDate, js$result$creation_date, js$publicationDate, js$metadata$publication_date)
@@ -265,7 +232,7 @@ extract_metadata <- function(uri, path) {
 	if (is.null(pub)) {
 		if (grepl("zenodo", uri)) pub <- "Zenodo"
 	}
-	cit <- paste0(auth, " (", year, "). ", titl, " ", pub, ". ", vv, uri)
+	cit <- paste0(authors, " (", year, "). ", titl, " ", pub, ". ", vv, uri)
 
 	data.frame(
 		uri = uri,
