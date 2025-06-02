@@ -3,20 +3,20 @@
 \alias{extract_metadata}
 
 \title{
-Get the dataset level meta-data
+Extract dataset level meta-data
 }
 
 \description{
-Extract meta-data associated with a data set
+Extract some meta-data associated with a data set
 }
 
 \usage{
-extract_metadata(js, uri)
+extract_metadata(uri, path)
 }
  
 \arguments{
-  \item{js}{JSON object created with \code{\link{read_metadata}}}
   \item{uri}{character. The URI of the dataset}
+  \item{path}{the path to your local copy of the Carob repo}
 } 
 
 \value{

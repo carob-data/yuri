@@ -1,4 +1,5 @@
 
+
 read_metadata <- function(uri, path) {
 
 	if (is.null(path)) {
@@ -15,6 +16,26 @@ read_metadata <- function(uri, path) {
 	x
 }
 
+
+get_version <- function(x) {
+	v <- x$data$latestVersion$versionNumber 
+	if (is.null(v)) {
+		v <- x$versionNumber 
+	}
+	if (is.null(v)) {
+		v <- x$revision
+	}
+	if (!is.null(v)) {
+		minor <- x$data$latestVersion$versionMinorNumber 
+		v <- paste0(v, ".", minor)
+	} else { # ckan
+		v <- x$result$version
+	}
+	if (is.null(v)) {
+		v <- as.character(NA)
+	}
+	v
+}
 
 
 get_license <- function(x) {
@@ -211,7 +232,9 @@ get_authors <- function(x) {
 }
 
 
-extract_metadata <- function(js, uri) {
+extract_metadata <- function(uri, path) {
+
+	js <- read_metadata(uri, path)
 	
 	lic <- get_license(js)
 	if (is.null(lic)) {
@@ -227,25 +250,26 @@ extract_metadata <- function(js, uri) {
 	if (is.null(pubdate)) pubdate <- "????-??-??"
 	year <- substr(pubdate, 1, 4)
 
-	v <- c(js$data$latestVersion$versionNumber, js$versionNumber, js$revision)
+	v <- get_version(js)
 	if (!is.null(v)) {
-		v <- paste0("Version ", v, ".")
-		if (!is.null(js$data$latestVersion$versionMinorNumber)) {
-			v <- paste0(v, js$data$latestVersion$versionMinorNumber, ". ")
-		}
+		vv <- paste0("Version ", v, ". ")
 	} 
+	
+	
 	pub <- c(js$data$publisher, js$result$publisher) 
 	if (is.null(pub)) {
 		if (grepl("zenodo", uri)) pub <- "Zenodo"
 	}
-	cit <- paste0(auth, " (", year, "). ", titl, " ", pub, ". ", v, uri)
+	cit <- paste0(auth, " (", year, "). ", titl, " ", pub, ". ", vv, uri)
 
 	data.frame(
+		uri = uri,
 		dataset_id = yuri::simpleURI(uri),
 		license = lic,
 		title = titl,
 		authors = authors,
 		data_published = pubdate,
+		version = v,
 		description = get_description(js),
 		data_citation = cit
 	)
