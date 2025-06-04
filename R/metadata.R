@@ -168,6 +168,8 @@ get_description <- function(x) {
 	out <- gsub("\u2019", "'", out)
 	out <- gsub("\u2019", "'", out)
 	gsub("<p>|</p>", "", out)
+	gsub('<span lang=\"EN-US\">|</span>', "", out)
+
 }
 
 
@@ -234,6 +236,7 @@ extract_metadata <- function(uri, path) {
 		if (grepl("zenodo", uri)) pub <- "Zenodo"
 	}
 	cit <- paste0(authors, " (", year, "). ", titl, " ", pub, ". ", vv, uri)
+	cit <- gsub("\\. \\.", ". ", cit)
 
 	data.frame(
 		uri = uri,
