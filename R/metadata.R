@@ -226,9 +226,11 @@ extract_metadata <- function(uri, path) {
 	year <- substr(pubdate, 1, 4)
 
 	v <- get_version(js)
-	if (!is.null(v)) {
+	if (!is.null(v) && (!is.na(v))) {
 		vv <- paste0("Version ", v, ". ")
-	} 
+	} else {
+		vv <- ""
+	}
 	
 	
 	pub <- c(js$data$publisher, js$result$publisher) 
