@@ -229,7 +229,7 @@ extract_metadata <- function(uri, path) {
 	if (!is.null(v) && (!is.na(v))) {
 		vv <- paste0("Version ", v, ". ")
 	} else {
-		vv <- ""
+		vv <- "Not versioned. "
 	}
 	
 	
