@@ -26,7 +26,7 @@ setp <- function(x) {
 	paste(x, collapse="; ")
 }
 
-meta_dataverse <- function(x, uri) {
+meta_dataverse <- function(x) {
 	lic <- get_license(x)
 
 	vers <- x$data$latestVersion$versionNumber 
@@ -54,19 +54,17 @@ meta_dataverse <- function(x, uri) {
 	i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "author")
 	if (length(i) > 0) {
 		aut <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorName$value
-		aut <- paste(aut, collapse="; ")
+		aff <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorAffiliation$value
 	} else {
-		aut <- as.character(NA)
+		aff <- aut <- as.character(NA)
 	}
 
 	data.frame(
-		uri = uri,
-		dataset_id = yuri::simpleURI(uri),
 		license = lic,
 		title = titl,
 		authors = setp(aut),
 		data_published = setv(x$data$publicationDate),
-		data_organization = as.character(NA),
+		data_organization = setp(aff),
 		data_publisher = setv(x$data$publisher),
 		version = setv(vers),
 		description = desc,
@@ -76,22 +74,23 @@ meta_dataverse <- function(x, uri) {
 }
 
 
-meta_CKAN <- function(x, uri) {
+meta_CKAN <- function(x) {
 
 	aut <- x$result$creator
 	i <- grep("contributor_person$|contributor_person_*.[0-9]$", names(x$result))	
 	r <- unlist(x$result[i])
-	add <- r[order(names(r))]
-	aut <- c(aut, add)
+	aut <- c(aut, r[order(names(r))])
+
+	i <- grep("contributor.*affiliation", names(x$result))	
+	aff <- unlist(x$result[i])
+	aff <- r[!grepl("Not Applicable", aff, ignore.case=TRUE)]
 
 	data.frame(
-		uri = uri,
-		dataset_id = yuri::simpleURI(uri),
 		license = get_license(x),
 		title = setv(x$result$title),
 		authors = setp(aut),
 		data_published = setv(x$result$creation_date),
-		data_organization = as.character(NA),
+		data_organization = setp(aff),
 		data_publisher = setv(x$result$publisher),
 		version = setv(x$result$version),
 		description = setv(x$result$notes),
@@ -105,10 +104,8 @@ cleaner <- function(x) {
 	gsub('<span lang=\"EN-US\">|</span>', "", x)
 }
 
-meta_zenodo <- function(x, uri) {
+meta_zenodo <- function(x) {
 	data.frame(
-		uri = uri,
-		dataset_id = yuri::simpleURI(uri),
 		license = get_license(x),
 		title = setv(x$metadata$title),
 		authors = setp(x$metadata$creators$name),
@@ -123,15 +120,13 @@ meta_zenodo <- function(x, uri) {
 
 
 
-meta_dryad <- function(x, uri) {
+meta_dryad <- function(x) {
 	aut <- x$authors
 	if (!is.null(aut)) {
 		aut <- paste0(aut$lastName, ", ", aut$firstName)
 	}
 
 	data.frame(
-		uri = uri,
-		dataset_id = yuri::simpleURI(uri),
 		license = get_license(x),
 		title = cleaner(setv(x$title)),
 		authors = setp(aut),
@@ -171,17 +166,21 @@ extract_metadata <- function(uri, path) {
 	js <- read_metadata(uri, path)
 	type <- get_type(js)
 	if (type == "dataverse") {
-		m <- meta_dataverse(js, uri)
+		m <- meta_dataverse(js)
 	} else if (type == "CKAN") {
-		m <- meta_CKAN(js, uri)
+		m <- meta_CKAN(js)
 	} else if (type == "dryad") {
-		m <- meta_dryad(js, uri)
+		m <- meta_dryad(js)
 	} else if (type == "zenodo") {
-		m <- meta_zenodo(js, uri)
+		m <- meta_zenodo(js)
 	} else {
 		m <- meta_mix(js, uri)
 	}
-	m$data_citation <- get_citation(m, uri)
-	m
+	data.frame(
+		uri = uri,
+		dataset_id = yuri::simpleURI(uri),
+		m,
+		data_citation = get_citation(m, uri)
+	)
 }
 
