@@ -156,7 +156,7 @@ get_type <- function(x) {
 }
 
 
-get_citation <- function(m) {
+get_citation <- function(m, uri) {
 	titl <- gsub("\\.\\.$", ".", paste0(m$title, "."))
 	year <- substr(m$data_published, 1, 4)
 	if (is.na(year)) year <- "????"
@@ -181,7 +181,7 @@ extract_metadata <- function(uri, path) {
 	} else {
 		m <- meta_mix(js, uri)
 	}
-	m$data_citation <- get_citation(m)
+	m$data_citation <- get_citation(m, uri)
 	m
 }
 
