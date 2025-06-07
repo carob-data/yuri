@@ -9,7 +9,7 @@ clone_github <- function(name, path) {
 	relff <- list.files(dzip, recursive=TRUE)
 	rem <- strsplit(relff[1], "/")[[1]][1]
 
-	outf <- file.path(path, repo, gsub(remove, "", relff))
+	outf <- file.path(path, name, gsub(rem, "", relff))
 	outd <- unique(dirname(outf))
 	for (d in outd) dir.create(d, FALSE, TRUE)
 	
@@ -19,3 +19,4 @@ clone_github <- function(name, path) {
 	ff <- list.files(dzip, recursive=TRUE, full.names=TRUE)
 	all(file.rename(ff, outf))
 }
+

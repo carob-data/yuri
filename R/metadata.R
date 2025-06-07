@@ -162,14 +162,9 @@ get_description <- function(x) {
 	if (is.null(out)) {
 		return(as.character(NA))
 	}	
-	out <- gsub("\u201C", "'", out)
-	out <- gsub("\u201D", "'", out)
-	out <- gsub("\u2018", "'", out)
-	out <- gsub("\u2019", "'", out)
-	out <- gsub("\u2019", "'", out)
-	gsub("<p>|</p>", "", out)
+	out <- gsub("\u201C|\u201D|\u2018|\u2019", "'", out)
+	gsub("<p>|</p>|\r\n$|\n$", "", out)
 	gsub('<span lang=\"EN-US\">|</span>', "", out)
-
 }
 
 
