@@ -17,239 +17,171 @@ read_metadata <- function(uri, path) {
 }
 
 
-get_version <- function(x) {
-	v <- x$data$latestVersion$versionNumber 
-	if (!is.null(v)) {
+setv <- function(x) {
+	ifelse(is.null(x), as.character(NA), as.character(x))
+}
+
+setp <- function(x) {
+	if (is.null(x)) return(as.character(NA))
+	paste(x, collapse="; ")
+}
+
+meta_dataverse <- function(x, uri) {
+	lic <- get_license(x)
+
+	vers <- x$data$latestVersion$versionNumber 
+	if (!is.null(vers)) {
 		minor <- x$data$latestVersion$versionMinorNumber 
 		if (!is.null(minor)) {
-			v <- paste0(v, ".", minor)
+			vers <- paste0(vers, ".", minor)
 		}
-	} else {
-		# only one could be not NULL
-		v <- c(x$versionNumber, x$revision, x$result$version)
-	}
-	if (is.null(v)) {
-		v <- as.character(NA)
-	}
-	v
-}
+	} 
 
-
-get_license <- function(x) {
-
-	if (!is.null(x$metadata$license$id)) { # Zenodo
-		return(toupper(x$metadata$license$id))
-	}
-
-	if (!is.null(x$licenses$name)) { # Rothamsted
-		return(x$licenses$name)
-	}
-  
-	if (!is.null(x$license)) { # Dryad
-		lic <- x$license
-		if (substr(lic, 1, 4) == "http") {
-			lic <- gsub(".html$", "", basename(lic))
-		}
-		return(lic)
-	}
-
-	lic <- x$data$latestVersion$license
-	trms <- x$data$latestVersion$termsOfUse
-	if (is.null(trms)) trms <- x$license
-	if (isTRUE(grepl("This dataset is made available without information", trms))) {
-		return("not specified")
-	}
-	
-#Creative Commons Attribution 4.0 
-	
-	if ((is.null(lic) || (lic[1] == "NONE")) && (!is.null(trms))) {
-		trm <- strsplit(trms, '\"')[[1]]
-		g <- grep("/creativecommons.org/|/licensebuttons.net", tolower(trm), value=TRUE)
-		if (length(g) == 0) {
-			g <- grep("Creative Commons", trm, value=TRUE, ignore.case=TRUE)
-			if (length(g) == 0) {
-				g <- grep("by-nc-nd", trm, value=TRUE, ignore.case=TRUE)
-				if (length(g) > 0) {
-					return("CC-BY-NC-ND")
-				}
-				g <- grep("by-nc-sa", trm, value=TRUE, ignore.case=TRUE)
-				if (length(g) > 0) {
-					return("CC-BY-NC-SA")
-				}
-				if (grepl("CIMMYT|CSISA", trms)) {
-					return("CIMMYT license")
-				}
-			}
-			if (grepl("by.4.0|CC-BY-4.0|", trms, ignore.case=TRUE)) {
-				return("CC-BY-4.0")
-			}
-			if (grepl("CC0-1.0", trm, ignore.case=TRUE)) {
-				return("CC0-1.0")
-			}
-  			gg <- unlist(regmatches(g, gregexpr('Creative (.+?) license', g, ignore.case=TRUE)))
-			if (any(tolower(gg) == "creative commons attribution 4.0 international license")) {
-				gg <- "CC-BY-4.0"
-			} 
-			return(	gsub("-DEED.AST", "", gg[1]) )
-		} else {
-			trm <- g[1]
-			trm <- gsub("http://", "", trm)
-			trm <- gsub("https://", "", trm)
-			trm <- gsub("creativecommons.org/licenses", "CC", trm)
-			trm <- gsub("licensebuttons.net/l", "CC", trm)
-			trm <- gsub("creativecommons.org/publicdomain/zero", "CC0", trm)	
-			trm <- gsub("/88x31.png", "", trm)
-			trm <- gsub("/", "-", trm)
-			trm <- toupper(gsub("-$", "", trm))
-			trm <- toupper(trm)
-			trm <- gsub(" ", "-", trm)			
-		} 
-		if (nchar(trm) > 0) {
-			if (is.null(lic) || (lic == "NONE")) {
-				lic <- trm	
-			} else {
-				lic <- paste0(lic, "; ", trm)
-			}
-		}
-	} else if (is.null(lic)) { #ckan
-		lic <- x$result$license_id 	
-		if (is.null(lic)) lic <- "?"
-		lic <- toupper(lic)
-	}
-	
-	if (is.list(lic)) {
-		lic <- lapply(lic, function(x) gsub(" ", "-", gsub("CC-ZERO", "CC-0", x)))
-		if ((length(lic) > 1) && ("name" %in% names(lic))) {
-			lic <- lic$name
-		}
-	} else {
-		lic <- gsub(" ", "-", gsub("CC-ZERO", "CC0", lic))
-	}
-	if (is.null(lic)) lic <- "unknown"
-	
-	gsub("-DEED.AST", "", lic)
-}
-
-
-get_title <- function(x) {
-	i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "title")
-	out <- NULL
+	i<- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "title")
 	if (length(i) > 0) {
-		out <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]
-	} else  {
-		# ckan, zenodo, dryad/Rothamsted
-		out <- c(x$result$title, x$metadata$title, x$title)[1]
-	}
-	if (is.null(out)) {
-		as.character(NA)
+		titl <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]
 	} else {
-		out
+		titl <- as.character(NA)
 	}
-}
 
-
-
-get_description <- function(x) {
 	i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "dsDescription")
-	out <- NULL
 	if (length(i) > 0) {
-		out <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]][[1]]$value
+		desc <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]][[1]]$value
+	} else {
+		desc <- as.character(NA)
 	}
-	if (is.null(out)) {
-		#ckan, zenodo, Rothamsted, dryad
-		out <- c(x$result$notes, x$metadata$description, x$description, x$abstract)
-	}
-	if (is.null(out)) {
-		return(as.character(NA))
-	}	
-	out <- gsub("\u201C|\u201D|\u2018|\u2019", "'", out)
-	gsub("<p>|</p>|\r\n$|\n$", "", out)
-	gsub('<span lang=\"EN-US\">|</span>', "", out)
-}
-
-
-get_authors <- function(x) {
 
 	i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "author")
-	out <- NULL
 	if (length(i) > 0) {
-		out <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorName$value
-	}
-	if (is.null(out)) {
-		r <- x$result
-		if (!is.null(r)) {
-			out <- r$creator
-			i <- grep("contributor_person$|contributor_person_*.[0-9]$", names(r))	
-			r <- unlist(r[i])
-			add <- r[order(names(r))]
-			out <- c(out, add)
-		}
-	}
-	#zenodo, Rothamsted
-	if (is.null(out)) {
-		out <- c(x$metadata$creators$name, x$contributors$title)
-	}
-	#dryad 
-	if (is.null(out)) {
-		out <- x$authors
-		if (!is.null(out)) {
-			out <- paste0(out$lastName, ", ", out$firstName)
-		}
-	}
-	if (is.null(out)) {
-		return(as.character(NA))
-	}
-	paste(out, collapse="; ")
-}
-
-
-extract_metadata <- function(uri, path) {
-
-	js <- read_metadata(uri, path)
-	
-	lic <- get_license(js)
-	if (is.null(lic)) {
-		warning("no license found")
-		lic <- as.character(NA)
-	}
-
-	authors <- get_authors(js)
-	titl <- gsub("\\.\\.$", ".", paste0(get_title(js), "."))
-
-	pubdate <- c(js$data$publicationDate, js$result$creation_date, js$publicationDate, js$metadata$publication_date)
-	if (is.null(pubdate)) pubdate <- "????-??-??"
-	year <- substr(pubdate, 1, 4)
-
-	v <- get_version(js)
-	if (!is.null(v) && (!is.na(v))) {
-		vv <- paste0("Version ", v, ". ")
+		aut <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorName$value
+		aut <- paste(aut, collapse="; ")
 	} else {
-		vv <- "Not versioned. "
+		aut <- as.character(NA)
 	}
-	
-	
-	pub <- c(js$data$publisher, js$result$publisher) 
-	if (is.null(pub)) {
-		if (grepl("zenodo", uri)) pub <- "Zenodo"
-	}
-	cit <- paste0(authors, " (", year, "). ", titl, " ", pub, ". ", vv, uri)
-	cit <- gsub("\\. \\.", ". ", cit)
 
 	data.frame(
 		uri = uri,
 		dataset_id = yuri::simpleURI(uri),
 		license = lic,
 		title = titl,
-		authors = authors,
-		data_published = pubdate,
-		version = v,
-		description = get_description(js),
-		data_citation = cit
+		authors = setp(aut),
+		data_published = setv(x$data$publicationDate),
+		data_organization = as.character(NA),
+		data_publisher = setv(x$data$publisher),
+		version = setv(vers),
+		description = desc,
+		design = as.character(NA)
+	)
+
+}
+
+
+meta_CKAN <- function(x, uri) {
+
+	aut <- x$result$creator
+	i <- grep("contributor_person$|contributor_person_*.[0-9]$", names(x$result))	
+	r <- unlist(x$result[i])
+	add <- r[order(names(r))]
+	aut <- c(aut, add)
+
+	data.frame(
+		uri = uri,
+		dataset_id = yuri::simpleURI(uri),
+		license = get_license(x),
+		title = setv(x$result$title),
+		authors = setp(aut),
+		data_published = setv(x$result$creation_date),
+		data_organization = as.character(NA),
+		data_publisher = setv(x$result$publisher),
+		version = setv(x$result$version),
+		description = setv(x$result$notes),
+		design = as.character(NA)
+	)
+}
+
+cleaner <- function(x) {
+	x <- gsub("\u201C|\u201D|\u2018|\u2019", "'", x)
+	x <- gsub("<p>|<p class=\"MsoNormal\">|</p>|\r\n$|\n$", "", x)
+	gsub('<span lang=\"EN-US\">|</span>', "", x)
+}
+
+meta_zenodo <- function(x, uri) {
+	data.frame(
+		uri = uri,
+		dataset_id = yuri::simpleURI(uri),
+		license = get_license(x),
+		title = setv(x$metadata$title),
+		authors = setp(x$metadata$creators$name),
+		data_published = setv(x$metadata$publication_date),
+		data_organization = setp(unique(x$metadata$creators$affiliation)),
+		data_publisher = "zenodo.org",
+		version = setv(x$revision),
+		description = cleaner(setv(x$metadata$description)),
+		design = as.character(NA)
 	)
 }
 
 
 
+meta_dryad <- function(x, uri) {
+	aut <- x$authors
+	if (!is.null(aut)) {
+		aut <- paste0(aut$lastName, ", ", aut$firstName)
+	}
+
+	data.frame(
+		uri = uri,
+		dataset_id = yuri::simpleURI(uri),
+		license = get_license(x),
+		title = cleaner(setv(x$title)),
+		authors = setp(aut),
+		data_published = setv(x$publicationDate),
+		data_organization = setp(unique(x$authors$affiliation)),
+		data_publisher = "dryad.org",
+		version = setv(x$versionNumber),
+		description = cleaner(setv(x$abstract)),
+		design = cleaner(setv(x$methods))
+	)
+	
+}
 
 
+get_type <- function(x) {
+	nms <- names(x)
+	if (all(c("status", "data") %in% nms)) return("dataverse")
+	if (all(c("help", "success", "result") %in% nms)) return("CKAN")
+	if ("_links" %in% nms) return("dryad")
+	if (all(c("created", "doi") %in% nms)) return("zenodo")
+	"other"
+}
+
+
+get_citation <- function(m) {
+	titl <- gsub("\\.\\.$", ".", paste0(m$title, "."))
+	year <- substr(m$data_published, 1, 4)
+	if (is.na(year)) year <- "????"
+	v <- ifelse(is.na(m$version), "Not versioned. ", paste0("Version ", m$version, ". "))
+	pb <- ifelse(is.na(m$data_publisher), "", paste(m$data_publisher, ". "))
+	cit <- paste0(m$authors, " (", year, "). ", titl, " ", pb, v, uri)
+	gsub("\\. \\.", ". ", cit)
+}
+
+
+extract_metadata <- function(uri, path) {
+	js <- read_metadata(uri, path)
+	type <- get_type(js)
+	if (type == "dataverse") {
+		m <- meta_dataverse(js, uri)
+	} else if (type == "CKAN") {
+		m <- meta_CKAN(js, uri)
+	} else if (type == "dryad") {
+		m <- meta_dryad(js, uri)
+	} else if (type == "zenodo") {
+		m <- meta_zenodo(js, uri)
+	} else {
+		m <- meta_mix(js, uri)
+	}
+	m$data_citation <- get_citation(m)
+	m
+}
 
