@@ -18,12 +18,19 @@ read_metadata <- function(uri, path) {
 
 
 setv <- function(x) {
-	ifelse(is.null(x), as.character(NA), as.character(x))
+	ifelse(is.null(x), as.character(NA), trimws(as.character(x)))
 }
 
 setp <- function(x) {
 	if (is.null(x)) return(as.character(NA))
-	paste(x, collapse="; ")
+	paste(trimws(x), collapse="; ")
+}
+
+
+cleaner <- function(x) {
+	x <- gsub("\u201C|\u201D|\u2018|\u2019", "'", x)
+	x <- gsub("<p>|<p class=\"MsoNormal\">|</p>|\r\n$|\n$", "", x)
+	trimws(gsub('<span lang=\"EN-US\">|</span>', "", x))
 }
 
 meta_dataverse <- function(x) {
@@ -63,11 +70,12 @@ meta_dataverse <- function(x) {
 		license = lic,
 		title = titl,
 		authors = setp(aut),
+		publication = as.character(NA),
 		data_published = setv(x$data$publicationDate),
 		data_organization = setp(aff),
 		data_publisher = setv(x$data$publisher),
 		version = setv(vers),
-		description = desc,
+		description = cleaner(desc),
 		design = as.character(NA)
 	)
 
@@ -89,6 +97,7 @@ meta_CKAN <- function(x) {
 		license = get_license(x),
 		title = setv(x$result$title),
 		authors = setp(aut),
+		publication = as.character(NA),
 		data_published = setv(x$result$creation_date),
 		data_organization = setp(aff),
 		data_publisher = setv(x$result$publisher),
@@ -98,17 +107,14 @@ meta_CKAN <- function(x) {
 	)
 }
 
-cleaner <- function(x) {
-	x <- gsub("\u201C|\u201D|\u2018|\u2019", "'", x)
-	x <- gsub("<p>|<p class=\"MsoNormal\">|</p>|\r\n$|\n$", "", x)
-	gsub('<span lang=\"EN-US\">|</span>', "", x)
-}
+
 
 meta_zenodo <- function(x) {
 	data.frame(
 		license = get_license(x),
 		title = setv(x$metadata$title),
 		authors = setp(x$metadata$creators$name),
+		publication = as.character(NA),
 		data_published = setv(x$metadata$publication_date),
 		data_organization = setp(unique(x$metadata$creators$affiliation)),
 		data_publisher = "zenodo.org",
@@ -125,11 +131,13 @@ meta_dryad <- function(x) {
 	if (!is.null(aut)) {
 		aut <- paste0(aut$lastName, ", ", aut$firstName)
 	}
+	pub <- simpleURI(simpleURI(paper), reverse=TRUE)
 
 	data.frame(
 		license = get_license(x),
 		title = cleaner(setv(x$title)),
 		authors = setp(aut),
+		publication = pub,
 		data_published = setv(x$publicationDate),
 		data_organization = setp(unique(x$authors$affiliation)),
 		data_publisher = "dryad.org",
