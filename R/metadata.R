@@ -83,7 +83,7 @@ meta_CKAN <- function(x) {
 
 	i <- grep("contributor.*affiliation", names(x$result))	
 	aff <- unlist(x$result[i])
-	aff <- r[!grepl("Not Applicable", aff, ignore.case=TRUE)]
+	aff <- aff[!grepl("Not Applicable", aff, ignore.case=TRUE)]
 
 	data.frame(
 		license = get_license(x),
