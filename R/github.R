@@ -5,7 +5,7 @@ clone_github <- function(name, path) {
 	utils::download.file(url, fgz, mode="wb", quiet = TRUE)
 
 	dzip <- tempfile()
-	untar(fgz, exdir=dzip)
+	utils::untar(fgz, exdir=dzip)
 	relff <- list.files(dzip, recursive=TRUE)
 	rem <- strsplit(relff[1], "/")[[1]][1]
 

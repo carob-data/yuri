@@ -195,7 +195,7 @@ get_authors <- function(x) {
 }
 
 get_publisher <- function(x) {
-	pub <- c(js$data$publisher, js$result$publisher) 
+	pub <- c(x$data$publisher, x$result$publisher) 
 	if (!is.null(pub)) return(pub)
 	if (grepl("drayd", x$sharingLink)) {
 		return("datadryad.org")
