@@ -131,8 +131,18 @@ meta_dryad <- function(x) {
 	if (!is.null(aut)) {
 		aut <- paste0(aut$lastName, ", ", aut$firstName)
 	}
-	pub <- simpleURI(simpleURI(paper), reverse=TRUE)
-
+	pub <- x$relatedWorks
+	if (NROW(pub) > 0) {
+		doipub <- pub[pub$identifierType == "DOI", ]
+		if (nrow(doipub) > 0) {
+			pub <- sapply(doipub$identifier, \(i) simpleURI(simpleURI(i), reverse=TRUE))
+			pub <- paste0(pub, collapse="; ")
+		} else {
+			pub <- paste0(pub$identifier, collapse="; ")		
+		}
+	} else {
+		pub <- as.character(NA)
+	}
 	data.frame(
 		license = get_license(x),
 		title = cleaner(setv(x$title)),
