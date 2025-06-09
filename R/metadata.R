@@ -93,6 +93,13 @@ meta_CKAN <- function(x) {
 	aff <- unlist(x$result[i])
 	aff <- aff[!grepl("Not Applicable", aff, ignore.case=TRUE)]
 
+
+	v <- x$data$latestVersion$versionNumber
+	minor <- x$data$latestVersion$versionMinorNumber
+	if (!is.null(minor)) {
+		v <- paste0(v, ".", minor)
+	}
+
 	data.frame(
 		license = get_license(x),
 		title = setv(x$result$title),
@@ -101,7 +108,7 @@ meta_CKAN <- function(x) {
 		data_published = setv(x$result$creation_date),
 		data_organization = setp(aff),
 		data_publisher = setv(x$result$publisher),
-		version = setv(x$result$version),
+		version = setv(v),
 		description = setv(x$result$notes),
 		design = as.character(NA)
 	)
