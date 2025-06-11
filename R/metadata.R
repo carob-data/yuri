@@ -62,23 +62,49 @@ meta_dataverse <- function(x) {
 	if (length(i) > 0) {
 		aut <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorName$value
 		aff <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorAffiliation$value
+		# "producer"
 	} else {
 		aff <- aut <- as.character(NA)
+	}
+	
+	if (is.null(aff) || isTRUE(is.na(aff))) {
+		i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "producer")
+		if (length(i) > 0) {
+			aff <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$producerName$value
+		}
+	}
+
+	doi <- as.character(NA)
+	i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "publication")
+	if (length(i) > 0) {
+		d <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$publicationURL$value
+		d <- grep("doi|hdl", d, value=TRUE)
+		if (length(d) > 0) {
+			doi <- sapply(d, yuri::simpleURI)	
+		}
+	}
+	
+	design <- as.character(NA)
+	d <- x$data$latestVersion$metadataBlocks$socialscience$fields
+	if (is.data.frame(d)) {
+		flds <- c("typeName", "value")
+		if (all(flds %in% names(d))) {
+			design <- paste0(apply(d[,flds], 1, \(x) paste0(x[1], ": ", x[2])), collapse="; ")
+		}
 	}
 
 	data.frame(
 		license = lic,
 		title = titl,
 		authors = setp(aut),
-		publication = as.character(NA),
+		publication = setp(doi),
 		data_published = setv(x$data$publicationDate),
 		data_organization = setp(aff),
 		data_publisher = setv(x$data$publisher),
 		version = setv(vers),
 		description = cleaner(desc),
-		design = as.character(NA)
+		design = design
 	)
-
 }
 
 
@@ -181,9 +207,9 @@ get_citation <- function(m, uri) {
 	year <- substr(m$data_published, 1, 4)
 	if (is.na(year)) year <- "????"
 	v <- ifelse(is.na(m$version), "Not versioned. ", paste0("Version ", m$version, ". "))
-	pb <- ifelse(is.na(m$data_publisher), "", paste(m$data_publisher, ". "))
+	pb <- ifelse(is.na(m$data_publisher), "", paste0(m$data_publisher, ". "))
 	cit <- paste0(m$authors, " (", year, "). ", titl, " ", pb, v, uri)
-	gsub("\\. \\.", ". ", cit)
+	gsub("\\. \\.|\\.\\.", ". ", cit)
 }
 
 
