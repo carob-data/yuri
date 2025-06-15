@@ -71,6 +71,7 @@ meta_dataverse <- function(x) {
 		i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "producer")
 		if (length(i) > 0) {
 			aff <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$producerName$value
+			aff <- unique(aff)
 		}
 	}
 
@@ -78,7 +79,8 @@ meta_dataverse <- function(x) {
 	i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "publication")
 	if (length(i) > 0) {
 		d <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]
-		d <- d[d$publicationRelationType$value != "Cites", ]
+		i <- which(d$publicationRelationType$value == "Cites")
+		d <- d[-i, ]
 		d <- grep("doi|hdl", d, value=TRUE)
 		if (length(d) > 0) {
 			doi <- sapply(d, yuri::simpleURI)	
@@ -215,6 +217,10 @@ get_citation <- function(m, uri) {
 
 
 extract_metadata <- function(uri, path) {
+
+	dataset_id <- simpleURI(uri)
+	uri <- simpleURI(dataset_id, reverse=TRUE)
+
 	js <- read_metadata(uri, path)
 	type <- get_type(js)
 	if (type == "dataverse") {
@@ -230,7 +236,7 @@ extract_metadata <- function(uri, path) {
 	}
 	data.frame(
 		uri = uri,
-		dataset_id = yuri::simpleURI(uri),
+		dataset_id = dataset_id
 		m,
 		data_citation = get_citation(m, uri)
 	)
