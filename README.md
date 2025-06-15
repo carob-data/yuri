@@ -1,8 +1,8 @@
 # yuri
 
-An *R* package to download research data from a repository, using an URI. Repositories supported include those based on the Harvard Dataverse, CKAN, and the Dryad, and Zenodo repositories.
+"yuri" is an *R* package to download research data from a repository, using an URI. Repositories supported include those based on the Harvard Dataverse and CKAN systems; and from [Dryad](https://datadryad.org/) and [Zenodo](https://zenodo.org/). Let us know if you woud need this functionality for another data repository.
 
-You can install the package with: 
+You can install "yuri" with: 
 
 ```
 remotes::install_github("carob-data/yuri")
@@ -39,3 +39,4 @@ t(m)
 #design            NA                
 #data_citation     "Cooke, Diane; White, Jeff; Chanzy, André; Evett, Steve; Webber, Heidi (2025). Wheat crop water use in semi-arid and Mediterranean environments. Harvard Dataverse. Version 1.0. doi:10.7910/DVN/HDKKAL"       
 ```
+
