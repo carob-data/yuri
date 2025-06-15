@@ -48,7 +48,14 @@ t(m)
 #data_citation     "Cooke, Diane; White, Jeff; Chanzy, André; Evett, Steve; Webber, Heidi (2025). Wheat crop water use in semi-arid and Mediterranean environments. Harvard Dataverse. Version 1.0. doi:10.7910/DVN/HDKKAL"       
 ```
 
-To be able to read the description.
+Note the "dataset_id". This is derived from the URI by replacing the colon `:` and forward slash `/` with an underscore `_`. The benefit of the dataset_id is that it can be used in file names, unlike the dataset_id. 
+
+```{r}
+yuri::simpleURI(uri)
+#[1] "doi_10.7910_DVN_HDKKAL"
+``` 
+
+To be able to read the description you can use `stringr::str_wrap`
 
 ```
 cat(stringr::str_wrap(m$description, 100))
