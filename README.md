@@ -1,6 +1,6 @@
 # yuri
 
-"yuri" is an *R* package to download research data from a repository, using an URI. Repositories supported include those based on the Harvard Dataverse and CKAN systems; and from [Dryad](https://datadryad.org/) and [Zenodo](https://zenodo.org/). Let us know if you woud need this functionality for another data repository.
+"yuri" is an *R* package to download research data for use in reproducible workflows. The data are refreferred to with an [URI](https://en.wikipedia.org/wiki/Uniform_Resource_Identifier) persistent identfier such as a [DOI](https://en.wikipedia.org/wiki/Digital_object_identifier) or [HDL](https://en.wikipedia.org/wiki/Handle_System). Repositories supported include those based on the Harvard Dataverse and CKAN systems; and from [Dryad](https://datadryad.org/) and [Zenodo](https://zenodo.org/). Let us know if you would like us to include this functionality for additional data repositories.
 
 You can install "yuri" with: 
 
