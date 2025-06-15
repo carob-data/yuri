@@ -292,6 +292,9 @@ http_address <- function(uri) {
 dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE) {
 
 	uname <- simpleURI(uri)
+	uri <- simpleURI(uname, reverse=TRUE)
+	
+	
 	#uripath=TRUE
 	#if (uripath) 
 	path <- file.path(path, uname)

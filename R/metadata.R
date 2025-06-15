@@ -236,7 +236,7 @@ extract_metadata <- function(uri, path) {
 	}
 	data.frame(
 		uri = uri,
-		dataset_id = dataset_id
+		dataset_id = dataset_id,
 		m,
 		data_citation = get_citation(m, uri)
 	)
