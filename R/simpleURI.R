@@ -32,7 +32,7 @@ simpleURI <- function(uri, reverse=FALSE) {
 		u <- gsub("hdl.handle.net/", "", ur)
 		u <- paste0("hdl_", u)
 	} else {
-		stop(paste0("Not a valid object identifier (DOI or HDL)"))
+		return(NULL) #stop(paste0("Not a valid object identifier (DOI or HDL)"))
 	}
 	gsub("/", "_", u)
 }

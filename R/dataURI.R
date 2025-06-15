@@ -5,7 +5,7 @@
 
 
 filter_files <- function(x) { 
-	x <- grep("\\.json$|ok\\.txt$|\\.pdf$|_files.txt$|\\.zip$|\\.doc$|\\.docx$", x, value=TRUE, invert=TRUE)
+	x <- grep("\\.json$|\\.txt$|\\.pdf$|\\.doc$|\\.docx$|\\.zip$", x, value=TRUE, invert=TRUE)
 	# remove opened excel files
 	grep("/~$", x, fixed=TRUE, invert=TRUE, value=TRUE)
 }
@@ -289,7 +289,7 @@ http_address <- function(uri) {
 }
 
 
-dataURI <- function(uri, path, cache=TRUE, unzip=TRUE) {
+dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE) {
 
 	uname <- simpleURI(uri)
 	#uripath=TRUE
@@ -304,13 +304,16 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE) {
 
 	if (cache && file.exists(file.path(path, "ok.txt"))) {
 		ff <- list.files(path, full.names=TRUE, recursive=TRUE)
-		return(filter_files(ff))
+		if (filter) ff <- filter_files(ff)
+		return(ff)
 	}
 	
 	zipf <- file.path(path, paste0(uname, ".zip"))
 	if (cache & file.exists(zipf)) {
 		zipf <- list.files(path, paste0(uname, ".*zip$"), full.names=TRUE)		
-		return(filter_files(.dataverse_unzip(zipf, path, unzip)))
+		ff <- .dataverse_unzip(zipf, path, unzip)
+		if (filter) ff <- filter_files(ff)
+		return(ff)
 	}
 
 	uri <- http_address(uri)
@@ -349,9 +352,10 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE) {
 	} else {
 		ff <- .download_dataverse_files(u, baseu, path, uname, domain, protocol, unzip, zipf)
 	}
-	
-	filter_files(ff)
+	if (filter) ff <- filter_files(ff)
+	ff
 }
+
 
 # uri <- "doi:10.5061/dryad.pj76g30"
 # path <- getwd()

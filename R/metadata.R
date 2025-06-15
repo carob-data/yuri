@@ -1,19 +1,19 @@
 
 
 read_metadata <- function(uri, path) {
-
 	if (is.null(path)) {
 		path <- file.path(tempdir(), "carob")
 	}
 	dataset_id <- yuri::simpleURI(uri)
 	jf <- file.path(path, dataset_id, paste0(dataset_id, ".json"))
 	if (file.exists(jf)) {
-		x <- jsonlite::fromJSON(readLines(jf))
-	} else {
-		jf <- file.path(path, "datapackage.json")
-		x <- jsonlite::fromJSON(readLines(jf, warn=FALSE))
+		return(jsonlite::fromJSON(readLines(jf)))
+	} 
+	jf2 <- file.path(path, "datapackage.json")
+	if (file.exists(jf2)) {
+		return(jsonlite::fromJSON(readLines(jf2, warn=FALSE)))
 	}
-	x
+	stop(paste("cannot find:\n", jf1, "\nor\n", jf2))
 }
 
 
@@ -77,7 +77,8 @@ meta_dataverse <- function(x) {
 	doi <- as.character(NA)
 	i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "publication")
 	if (length(i) > 0) {
-		d <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$publicationURL$value
+		d <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]
+		d <- d[d$publicationRelationType$value != "Cites", ]
 		d <- grep("doi|hdl", d, value=TRUE)
 		if (length(d) > 0) {
 			doi <- sapply(d, yuri::simpleURI)	
