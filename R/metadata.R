@@ -5,9 +5,9 @@ read_metadata <- function(uri, path) {
 		path <- file.path(tempdir(), "carob")
 	}
 	dataset_id <- yuri::simpleURI(uri)
-	jf <- file.path(path, dataset_id, paste0(dataset_id, ".json"))
-	if (file.exists(jf)) {
-		return(jsonlite::fromJSON(readLines(jf)))
+	jf1 <- file.path(path, dataset_id, paste0(dataset_id, ".json"))
+	if (file.exists(jf1)) {
+		return(jsonlite::fromJSON(readLines(jf1)))
 	} 
 	jf2 <- file.path(path, "datapackage.json")
 	if (file.exists(jf2)) {
