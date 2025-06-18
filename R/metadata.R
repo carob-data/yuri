@@ -101,7 +101,7 @@ meta_dataverse <- function(x) {
 		title = titl,
 		authors = setp(aut),
 		publication = setp(doi),
-		data_published = setv(x$data$publicationDate),
+		date_published = setv(x$data$publicationDate),
 		data_organization = setp(aff),
 		data_publisher = setv(x$data$publisher),
 		version = setv(vers),
@@ -134,7 +134,7 @@ meta_CKAN <- function(x) {
 		title = setv(x$result$title),
 		authors = setp(aut),
 		publication = as.character(NA),
-		data_published = setv(x$result$creation_date),
+		date_published = setv(x$result$creation_date),
 		data_organization = setp(aff),
 		data_publisher = setv(x$result$publisher),
 		version = setv(v),
@@ -151,7 +151,7 @@ meta_zenodo <- function(x) {
 		title = setv(x$metadata$title),
 		authors = setp(x$metadata$creators$name),
 		publication = as.character(NA),
-		data_published = setv(x$metadata$publication_date),
+		date_published = setv(x$metadata$publication_date),
 		data_organization = setp(unique(x$metadata$creators$affiliation)),
 		data_publisher = "zenodo.org",
 		version = setv(x$revision),
@@ -184,7 +184,7 @@ meta_dryad <- function(x) {
 		title = cleaner(setv(x$title)),
 		authors = setp(aut),
 		publication = pub,
-		data_published = setv(x$publicationDate),
+		date_published = setv(x$publicationDate),
 		data_organization = setp(unique(x$authors$affiliation)),
 		data_publisher = "dryad.org",
 		version = setv(x$versionNumber),
@@ -207,7 +207,7 @@ get_type <- function(x) {
 
 get_citation <- function(m, uri) {
 	titl <- gsub("\\.\\.$", ".", paste0(m$title, "."))
-	year <- substr(m$data_published, 1, 4)
+	year <- substr(m$date_published, 1, 4)
 	if (is.na(year)) year <- "????"
 	v <- ifelse(is.na(m$version), "Not versioned. ", paste0("Version ", m$version, ". "))
 	pb <- ifelse(is.na(m$data_publisher), "", paste0(m$data_publisher, ". "))

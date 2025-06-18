@@ -12,7 +12,8 @@ filter_files <- function(x) {
 
 
 writeOK <- function(path, uu) {
-	writeLines(c(utils::timestamp(quiet=TRUE), uu), file.path(path, "ok.txt"))
+	stamp <- utils::timestamp(quiet=TRUE)
+	writeLines(c(stamp, uu), file.path(path, "ok.txt"))
 }
 
 
