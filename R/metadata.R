@@ -60,8 +60,8 @@ meta_dataverse <- function(x) {
 
 	i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "author")
 	if (length(i) > 0) {
-		aut <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorName$value
-		aff <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorAffiliation$value
+		aut <- unique(x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorName$value)
+		aff <- unique(x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorAffiliation$value)
 		# "producer"
 	} else {
 		aff <- aut <- as.character(NA)
@@ -119,7 +119,7 @@ meta_CKAN <- function(x) {
 	aut <- c(aut, r[order(names(r))])
 
 	i <- grep("contributor.*affiliation", names(x$result))	
-	aff <- unlist(x$result[i])
+	aff <- unique(unlist(x$result[i]))
 	aff <- aff[!grepl("Not Applicable", aff, ignore.case=TRUE)]
 
 
