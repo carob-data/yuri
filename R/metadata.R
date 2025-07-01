@@ -30,11 +30,11 @@ setp <- function(x) {
 
 cleaner <- function(x) {
 	x <- gsub("\u201C|\u201D|\u2018|\u2019", "'", x)
-	x <- gsub("\n\n|\r\n", "@#@#@", x)
-	x <- gsub("\n|\r", " ", x)
+	x <- gsub("\n\n|<br><br>|</br></br>|\r\n\r\n", "@#@#@", x)
+	x <- gsub("\n|\r|<br>|</br>", " ", x)
 	x <- gsub("<i>|</i>|<b>|</b>|<div>|</div>|<p>|<p class=\"MsoNormal\">|</p>|@#@#@$", "", x)
-	x <- trimws(gsub('<span lang=\"EN-US\">|</span>', "", x))
-	gsub("@#@#@", "\n", x)
+	x <- trimws(gsub('<span lan	g=\"EN-US\">|</span>', "", x))
+	gsub("@#@#@", "\n\n", x)
 }
 
 meta_dataverse <- function(x) {

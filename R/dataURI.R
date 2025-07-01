@@ -249,7 +249,7 @@ writeOK <- function(path, uu) {
 		writeOK(path, uu)
 	}
 
-	list.files(file.path(path), full.names = TRUE)
+	list.files(path, full.names = TRUE)
 }
 
 
@@ -325,7 +325,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 		writeOK(path, uu)
 	}
 
-	list.files(file.path(path), full.names = TRUE)
+	list.files(path, full.names = TRUE)
 }
 
 
@@ -366,7 +366,7 @@ http_address <- function(uri) {
 }
 
 
-dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE) {
+dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=TRUE) {
 
 	uname <- simpleURI(uri)
 	uri <- simpleURI(uname, reverse=TRUE)
@@ -383,7 +383,7 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE) {
 	dir.create(path, FALSE, TRUE)
 
 	if (cache && file.exists(file.path(path, "ok.txt"))) {
-		ff <- list.files(path, full.names=TRUE, recursive=TRUE)
+		ff <- list.files(path, full.names=TRUE, recursive=recursive, include.dirs = !recursive)
 		if (filter) ff <- filter_files(ff)
 		return(ff)
 	}
