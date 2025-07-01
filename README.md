@@ -1,6 +1,8 @@
 # yuri
 
-"yuri" is an *R* package to download research data for use in reproducible workflows. The data are refreferred to with a [URI](https://en.wikipedia.org/wiki/Uniform_Resource_Identifier) persistent identfier such as a [DOI](https://en.wikipedia.org/wiki/Digital_object_identifier) or [HDL](https://en.wikipedia.org/wiki/Handle_System). Repositories supported include those based on the [Harvard Dataverse](https://dataverse.org/) and [CKAN](https://ckan.org/) systems, and [Dryad](https://datadryad.org/) and [Zenodo](https://zenodo.org/). Let us know if you would like us to include this functionality for additional data repositories. And please [raise an issue](https://github.com/carob-data/yuri/issues) if you find a bug or would like to request a new feature.
+"yuri" is an *R* package to download research data for use in reproducible workflows. The data are refreferred to with a [URI](https://en.wikipedia.org/wiki/Uniform_Resource_Identifier) persistent identfier such as a [DOI](https://en.wikipedia.org/wiki/Digital_object_identifier) or [HDL](https://en.wikipedia.org/wiki/Handle_System). Repositories supported include those based on the [Harvard Dataverse](https://dataverse.org/) and [CKAN](https://ckan.org/) systems, and [Dryad](https://datadryad.org/), [Zenodo](https://zenodo.org/) and [figshare](https://figshare.com/). 
+
+Let us know if you would like us to include this functionality for additional data repositories. And please [raise an issue](https://github.com/carob-data/yuri/issues) if you find a bug or would like to request a new feature.
 
 You can install "yuri" with: 
 
