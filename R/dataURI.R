@@ -275,6 +275,9 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers$`content-lengt
 	}
 	ry <- httr::content(y, as="raw")
 	m <- rawToChar(ry)
+	dir.create(file.path(path, "_more_metadata"), FALSE, FALSE)
+	writeLines(m, file.path(path, "_more_metadata", paste0(uname, "_files.json")))
+
 	js <- jsonlite::fromJSON(m)
 	urls <- js$url_public_api
 	if (length(urls) == 100) {
@@ -283,6 +286,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers$`content-lengt
 
 	licenses <- vector("list", length(urls))
 	done <- TRUE
+	files <- NULL
 	for (i in 1:length(urls)) {
 		d <- httr::GET(urls[i])
 		d <- httr::content(d, as="raw")
@@ -292,25 +296,30 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers$`content-lengt
 		if (is.null(this_url)) next
 		this_file <- file.path(path, js$files$name)
 		licenses[i] <- js$license$name
-		if (!file.exists(this_file)) {
-			ok <- try(utils::download.file(this_url, this_file, mode="wb", quiet=TRUE))
-			if (inherits(ok, "try-error")) {
-				message(paste("cannot download", basename(this_file)))
-				done <- FALSE
-			} else {
-				message(basename(this_file))
+		for (j in 1:length(this_file)) {
+			if (!file.exists(this_file[j])) {
+				writeLines(d, file.path(path, "_more_metadata", paste0(uname, "_", js$files$name[j], ".json")))
+				message(basename(this_file[j])) 
+				utils::flush.console()
+				ok <- try(utils::download.file(this_url[j], this_file[j], mode="wb", quiet=TRUE))
+				if (inherits(ok, "try-error")) {
+					message("   download failed")
+					done <- FALSE
+					if (file.exists(this_file[j])) file.remove(this_file[j])
+				}
 			}
-			flush.console()
 		}
+		files <- c(files, this_file)
 	}
-	writeLines(unique(licenses), file.path(path, "licenses.txt"))
+	writeLines(unique(unlist(licenses)), file.path(path, "licenses.txt"))
 	
 	if (done) {
 		if (unzip) {
-			i <- grepl("\\zip$", files)
+			i <- grepl("\\.zip$", files)
 			if (any(i)) {
+				message("   unzipping")
 				ff <- files[i]
-				for (f in ff) utils::unzip(f, junkpaths=TRUE, exdir=path)
+				for (f in ff) utils::unzip(f, junkpaths=FALSE, exdir=path)
 			}
 		}
 		writeOK(path, uu)
