@@ -253,7 +253,7 @@ writeOK <- function(path, uu) {
 }
 
 
-download_size <- function(url) as.numeric(httr::HEAD(url)$headers$`content-length`)
+download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-length"]])
 
 .download_figshare_files <- function(u, path, uname, unzip){
 
