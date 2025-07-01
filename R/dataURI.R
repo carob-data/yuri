@@ -253,6 +253,8 @@ writeOK <- function(path, uu) {
 }
 
 
+download_size <- function(url) as.numeric(httr::HEAD(url)$headers$`content-length`)
+
 .download_figshare_files <- function(u, path, uname, unzip){
 
 	pid <- basename(u)
@@ -279,7 +281,7 @@ writeOK <- function(path, uu) {
 		message("Houston, we have a problem")
 	}
 
-	licenses <- rep(as.character(NA), length(urls))
+	licenses <- vector("list", length(urls))
 	done <- TRUE
 	for (i in 1:length(urls)) {
 		d <- httr::GET(urls[i])
@@ -287,12 +289,18 @@ writeOK <- function(path, uu) {
 		d <- rawToChar(d)
 		js <- jsonlite::fromJSON(d)
 		this_url <- js$files$download_url
-		this_file <- js$title 
+		if (is.null(this_url)) next
+		this_file <- file.path(path, js$files$name)
 		licenses[i] <- js$license$name
-		ok <- try(utils::download.file(this_url, this_file, mode="wb", quiet=TRUE))
-		if (inherits(ok, "try-error")) {
-			message(paste("cannot download", basename(this_file)))
-			done <- FALSE
+		if (!file.exists(this_file)) {
+			ok <- try(utils::download.file(this_url, this_file, mode="wb", quiet=TRUE))
+			if (inherits(ok, "try-error")) {
+				message(paste("cannot download", basename(this_file)))
+				done <- FALSE
+			} else {
+				message(basename(this_file))
+			}
+			flush.console()
 		}
 	}
 	writeLines(unique(licenses), file.path(path, "licenses.txt"))

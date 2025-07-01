@@ -27,13 +27,14 @@ setp <- function(x) {
 }
 
 
+
 cleaner <- function(x) {
 	x <- gsub("\u201C|\u201D|\u2018|\u2019", "'", x)
-	x <- gsub("<div>|</div>|<p>|<p class=\"MsoNormal\">|</p>|\r\n$|\n$", "", x)
+	x <- gsub("\n\n|\r\n", "@#@#@", x)
+	x <- gsub("\n|\r", " ", x)
+	x <- gsub("<i>|</i>|<b>|</b>|<div>|</div>|<p>|<p class=\"MsoNormal\">|</p>|@#@#@$", "", x)
 	x <- trimws(gsub('<span lang=\"EN-US\">|</span>', "", x))
-	x <- gsub("\r\r", "@#@#@", x)
-	x <- gsub("\r", " ", x)
-	gsub("@#@#@", "\r\r", x)
+	gsub("@#@#@", "\n", x)
 }
 
 meta_dataverse <- function(x) {
@@ -202,8 +203,7 @@ meta_figshare <- function(x, path) {
 
 	flics <- file.path(path, "licenses.txt")
 	if (file.exists(flics)) {
-		licenses <- readLines(flics)
-		licenses <- paste(licenses, collapse=";")
+		licenses <- setp(readLines(flics))
 	} else {
 		licenses <- as.character(NA)
 	}
