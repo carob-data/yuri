@@ -253,6 +253,65 @@ writeOK <- function(path, uu) {
 }
 
 
+.download_figshare_files <- function(u, path, uname, unzip){
+
+	pid <- basename(u)
+	uu <- paste0("https://api.figshare.com/v2/collections/", pid)
+  
+	y <- httr::GET(uu)
+	if (y$status_code != 200) {
+		return(NULL)
+	}
+	ry <- httr::content(y, as="raw")
+	meta <- rawToChar(ry)
+	writeLines(meta, file.path(path, paste0(uname, ".json")))
+
+	uu <- paste0(uu, "/articles?page=1&page_size=100")
+	y <- httr::GET(uu)
+	if (y$status_code != 200) {
+		return(NULL)
+	}
+	ry <- httr::content(y, as="raw")
+	m <- rawToChar(ry)
+	js <- jsonlite::fromJSON(m)
+	urls <- js$url_public_api
+	if (length(urls) == 100) {
+		message("Houston, we have a problem")
+	}
+
+	licenses <- rep(as.character(NA), length(urls))
+	done <- TRUE
+	for (i in 1:length(urls)) {
+		d <- httr::GET(urls[i])
+		d <- httr::content(d, as="raw")
+		d <- rawToChar(d)
+		js <- jsonlite::fromJSON(d)
+		this_url <- js$files$download_url
+		this_file <- js$title 
+		licenses[i] <- js$license$name
+		ok <- try(utils::download.file(this_url, this_file, mode="wb", quiet=TRUE))
+		if (inherits(ok, "try-error")) {
+			message(paste("cannot download", basename(this_file)))
+			done <- FALSE
+		}
+	}
+	writeLines(unique(licenses), file.path(path, "licenses.txt"))
+	
+	if (done) {
+		if (unzip) {
+			i <- grepl("\\zip$", files)
+			if (any(i)) {
+				ff <- files[i]
+				for (f in ff) utils::unzip(f, junkpaths=TRUE, exdir=path)
+			}
+		}
+		writeOK(path, uu)
+	}
+
+	list.files(file.path(path), full.names = TRUE)
+}
+
+
 .download_rothamsted_files <- function(u, path, uname, unzip) {
 
 	uu <- gsub("dataset", "metadata", u)
@@ -320,7 +379,7 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE) {
 		return(ff)
 	}
 
-	uri <- http_address(uri)
+	uri <- yuri:::http_address(uri)
 	
 	if (!file.exists(path)) {
 		stop(paste("cannot create path:", path))
@@ -341,10 +400,10 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE) {
 		return()
 	}
 	u <- x$url
-	domain <- .getdomain(u)
-	protocol <- .getprotocol(u)
+	domain <- yuri:::.getdomain(u)
+	protocol <- yuri:::.getprotocol(u)
 	baseu <- paste0(protocol, domain)
-
+	
 	if (grepl("/stash/|datadryad", u)) {	
 		ff <- .download_dryad_files(u, baseu, path, uname, unzip)
 	} else if (grepl("rothamsted", u)) {
@@ -353,6 +412,8 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE) {
 		ff <- .download_ckan_files(u, baseu, path, uname, unzip)
 	} else if (grepl("zenodo", u)) {
 		ff <- .download_zenodo_files(u, path, uname, unzip)
+	} else if (grepl("figshare", u)) {
+		ff <- .download_figshare_files(u, path, uname, unzip)
 	} else {
 		ff <- .download_dataverse_files(u, baseu, path, uname, domain, protocol, unzip, zipf)
 	}
@@ -365,3 +426,5 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE) {
 # path <- getwd()
 # group <- "fertilizer"
 # ff <- get_data(uri, path, group)
+
+

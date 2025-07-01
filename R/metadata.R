@@ -29,8 +29,11 @@ setp <- function(x) {
 
 cleaner <- function(x) {
 	x <- gsub("\u201C|\u201D|\u2018|\u2019", "'", x)
-	x <- gsub("<p>|<p class=\"MsoNormal\">|</p>|\r\n$|\n$", "", x)
-	trimws(gsub('<span lang=\"EN-US\">|</span>', "", x))
+	x <- gsub("<div>|</div>|<p>|<p class=\"MsoNormal\">|</p>|\r\n$|\n$", "", x)
+	x <- trimws(gsub('<span lang=\"EN-US\">|</span>', "", x))
+	x <- gsub("\r\r", "@#@#@", x)
+	x <- gsub("\r", " ", x)
+	gsub("@#@#@", "\r\r", x)
 }
 
 meta_dataverse <- function(x) {
@@ -195,12 +198,38 @@ meta_dryad <- function(x) {
 }
 
 
+meta_figshare <- function(x, path) {
+
+	flics <- file.path(path, "licenses.txt")
+	if (file.exists(flics)) {
+		licenses <- readLines(flics)
+		licenses <- paste(licenses, collapse=";")
+	} else {
+		licenses <- as.character(NA)
+	}
+
+	data.frame(
+		license = licenses,
+		title = setv(x$title),
+		authors = setp(x$authors$full_name),
+		publication = setp(x$references),
+		date_published = setv(x$modified_date),  # created_date
+		data_organization = setp(unique(x$institution_id)),
+		data_publisher = "figshare.com",
+		version = setv(x$version),
+		description = cleaner(setv(x$description)),
+		design = as.character(NA)
+	)
+}
+
+
 get_type <- function(x) {
 	nms <- names(x)
 	if (all(c("status", "data") %in% nms)) return("dataverse")
 	if (all(c("help", "success", "result") %in% nms)) return("CKAN")
 	if ("_links" %in% nms) return("dryad")
 	if (all(c("created", "doi") %in% nms)) return("zenodo")
+	if (grepl("figshare", x$url)) return("figshare") 
 	"other"
 }
 
@@ -231,6 +260,8 @@ extract_metadata <- function(uri, path) {
 		m <- meta_dryad(js)
 	} else if (type == "zenodo") {
 		m <- meta_zenodo(js)
+	} else if (type == "figshare") {
+		m <- meta_figshare(js, path)
 	} else {
 		m <- meta_mix(js, uri)
 	}
