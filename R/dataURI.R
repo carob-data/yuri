@@ -306,10 +306,10 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 					message("   download failed")
 					done <- FALSE
 					if (file.exists(this_file[j])) file.remove(this_file[j])
-				}
+				} 
+				files <- c(files, this_file[j])
 			}
 		}
-		files <- c(files, this_file)
 	}
 	writeLines(unique(unlist(licenses)), file.path(path, "licenses.txt"))
 	

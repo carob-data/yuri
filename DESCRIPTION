@@ -2,10 +2,10 @@ Package: yuri
 Type: Package
 Title: Download reserach data
 Description: Download research data with an URI such as a DOI or HDL. Intended to work with Dataverse, Dryad, Zenodo, and CKAN APIs such that the data can be included into reproducible workflows.
-Version: 0.2-1
+Version: 0.2-2
 Depends: R (>= 4.1.0)
 Imports: httr, archive, jsonlite
-Date: 2025-06-28
+Date: 2025-07-02
 Encoding: UTF-8
 Authors@R: c(
 	person("Robert J.", "Hijmans", role = c("cre", "aut"),  email = "r.hijmans@gmail.com"),
