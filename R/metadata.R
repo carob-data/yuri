@@ -35,7 +35,7 @@ cleaner <- function(x) {
 	x <- gsub("\n|\r|<br>|</br>", " ", x)
 	x <- gsub("<i>|</i>|<b>|</b>|<div>|</div>|<p>|<p class=\"MsoNormal\">|</p>", "", x)
 	x <- trimws(gsub('<span lan g=\"EN-US\">|</span>', "", x))
-	x <- gsub(paste0("(", b, ")"), b, x)
+	x <- gsub(paste0("(", b, ")+"), b, x)
 	gsub(b, "\n\n", gsub(paste0(b, "$"), "", x))
 }
 
