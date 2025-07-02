@@ -434,8 +434,11 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 	} else {
 		ff <- .download_dataverse_files(u, baseu, path, uname, domain, protocol, unzip, zipf)
 	}
-	if (filter) ff <- filter_files(ff)
-	ff
+	if (filter) {
+		filter_files(ff)
+	} else {
+		ff
+	}
 }
 
 
