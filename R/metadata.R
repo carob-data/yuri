@@ -23,7 +23,7 @@ setv <- function(x) {
 
 setp <- function(x) {
 	if (is.null(x)) return(as.character(NA))
-	paste(trimws(x), collapse="; ")
+	paste(na.omit(trimws(x)), collapse="; ")
 }
 
 
@@ -68,7 +68,7 @@ meta_dataverse <- function(x) {
 	i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "author")
 	if (length(i) > 0) {
 		aut <- unique(x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorName$value)
-		aff <- unique(x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorAffiliation$value)
+		aff <- na.omit(unique(x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorAffiliation$value))
 		# "producer"
 	} else {
 		aff <- aut <- as.character(NA)
@@ -125,10 +125,14 @@ meta_CKAN <- function(x) {
 	r <- unlist(x$result[i])
 	aut <- c(aut, r[order(names(r))])
 
+	i <- grep("contributor_projectlead_institute", names(x$result))	
+	aff1 <- unique(unlist(x$result[i]))
 	i <- grep("contributor.*affiliation", names(x$result))	
-	aff <- unique(unlist(x$result[i]))
-	aff <- aff[!grepl("Not Applicable", aff, ignore.case=TRUE)]
-
+	aff <- unique(c(aff1, unlist(x$result[i])))
+	aff <- trimws(aff[!grepl("Not Applicable", aff, ignore.case=TRUE)])
+	aff <- aff[aff != ""]
+	if (length(aff) == 0) aff <- NULL
+	
 
 	v <- x$data$latestVersion$versionNumber
 	minor <- x$data$latestVersion$versionMinorNumber

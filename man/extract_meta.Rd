@@ -16,7 +16,7 @@ extract_metadata(uri, path)
  
 \arguments{
   \item{uri}{character. The URI of the dataset}
-  \item{path}{the path to your local copy of the Carob repo}
+  \item{path}{character. The path to the data folder}
 } 
 
 \value{
