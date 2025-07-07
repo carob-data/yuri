@@ -32,9 +32,10 @@ cleaner <- function(x) {
 	b <- "Ab1Ba2Ab3"
 	x <- gsub("\u201C|\u201D|\u2018|\u2019", "'", x)
 	x <- gsub("\n\n|<br><br>|</br></br>|\r\n\r\n", b, x)
-	x <- gsub("\n|\r|<br>|</br>", " ", x)
+	x <- gsub("\n|\r|<br>|</br>|<sub>|</sub>|<em>|</em>", " ", x)
 	x <- gsub("<i>|</i>|<b>|</b>|<div>|</div>|</p>|<p>|<p class=\"MsoNormal\">|</h.>|<h.>|</a>", "", x)
 	x <- gsub('<a href=".*?">', "", x)
+	x <- gsub("<p.*?>", "", x)
 	x <- trimws(gsub('<span lan g=\"EN-US\">|</span>', "", x))
 	x <- gsub(paste0("(", b, ")+"), b, x)
 	gsub(b, "\n\n", gsub(paste0(b, "$"), "", x))
