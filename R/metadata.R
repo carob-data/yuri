@@ -112,7 +112,7 @@ meta_dataverse <- function(x) {
 		publication = setp(doi),
 		date_published = setv(x$data$publicationDate),
 		data_organization = setp(aff),
-		data_publisher = setv(x$data$publisher),
+		publisher = setv(x$data$publisher),
 		version = setv(vers),
 		description = cleaner(desc),
 		design = design
@@ -149,7 +149,7 @@ meta_CKAN <- function(x) {
 		publication = as.character(NA),
 		date_published = setv(x$result$creation_date),
 		data_organization = setp(aff),
-		data_publisher = setv(x$result$publisher),
+		publisher = setv(x$result$publisher),
 		version = setv(v),
 		description = setv(x$result$notes),
 		design = as.character(NA)
@@ -166,7 +166,7 @@ meta_zenodo <- function(x) {
 		publication = as.character(NA),
 		date_published = setv(x$metadata$publication_date),
 		data_organization = setp(unique(x$metadata$creators$affiliation)),
-		data_publisher = "zenodo.org",
+		publisher = "zenodo.org",
 		version = setv(x$revision),
 		description = cleaner(setv(x$metadata$description)),
 		design = as.character(NA)
@@ -199,7 +199,7 @@ meta_dryad <- function(x) {
 		publication = pub,
 		date_published = setv(x$publicationDate),
 		data_organization = setp(unique(x$authors$affiliation)),
-		data_publisher = "dryad.org",
+		publisher = "dryad.org",
 		version = setv(x$versionNumber),
 		description = cleaner(setv(x$abstract)),
 		design = cleaner(setv(x$methods))
@@ -224,7 +224,7 @@ meta_figshare <- function(x, path) {
 		publication = setp(x$references),
 		date_published = setv(x$modified_date),  # created_date
 		data_organization = setp(unique(x$institution_id)),
-		data_publisher = "figshare.com",
+		publisher = "figshare.com",
 		version = setv(x$version),
 		description = cleaner(setv(x$description)),
 		design = as.character(NA)
@@ -248,7 +248,7 @@ get_citation <- function(m, uri) {
 	year <- substr(m$date_published, 1, 4)
 	if (is.na(year)) year <- "????"
 	v <- ifelse(is.na(m$version), "Not versioned. ", paste0("Version ", m$version, ". "))
-	pb <- ifelse(is.na(m$data_publisher), "", paste0(m$data_publisher, ". "))
+	pb <- ifelse(is.na(m$publisher), "", paste0(m$publisher, ". "))
 	cit <- paste0(m$authors, " (", year, "). ", titl, " ", pb, v, uri)
 	gsub("\\. \\.|\\.\\.", ". ", cit)
 }
