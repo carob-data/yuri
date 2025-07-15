@@ -1,8 +1,7 @@
 
 .removeprotocol <- function(x) gsub("http://|https://|www\\.", "", x)
 
-simpleURI <- function(uri, reverse=FALSE) {
-  
+ one_simple_uri <- function(uri, reverse) { 
 	if (reverse) {
 		if (grepl(":", uri)) {
 			return(gsub("_", "/", uri))
@@ -35,5 +34,9 @@ simpleURI <- function(uri, reverse=FALSE) {
 		return(NULL) #stop(paste0("Not a valid object identifier (DOI or HDL)"))
 	}
 	gsub("/", "_", u)
+}
+
+simpleURI <- function(uri, reverse=FALSE) {
+	sapply(uri, \(u) one_simple_uri(u, reverse[1]), USE.NAMES=FALSE)
 }
 
