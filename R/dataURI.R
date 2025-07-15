@@ -299,7 +299,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 		for (j in 1:length(this_file)) {
 			if (!file.exists(this_file[j])) {
 				writeLines(d, file.path(path, "_more_metadata", paste0(uname, "_", js$files$name[j], ".json")))
-				message(basename(this_file[j])) 
+				message(paste("   ", basename(this_file[j])))
 				utils::flush.console()
 				ok <- try(utils::download.file(this_url[j], this_file[j], mode="wb", quiet=TRUE))
 				if (inherits(ok, "try-error")) {
@@ -396,7 +396,7 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 		return(ff)
 	}
 
-	uri <- yuri:::http_address(uri)
+	uri <- http_address(uri)
 	
 	if (!file.exists(path)) {
 		stop(paste("cannot create path:", path))
@@ -405,8 +405,8 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 	# temporary fix because WorldAgroFor https cert has expired
 	httr::set_config(httr::config(ssl_verifypeer = 0L))
 
-	# For CIRAD dataverse
-	if (grepl("18167", uri)) {
+	# For CIRAD / figshare
+	if (grepl("18167|figshare", uri)) {
 		x <- httr::GET(uri, httr::add_headers("user-agent" = "Mozilla/5.0", "Cache-Control" = "no-cache"))
 	} else {
 		x <- httr::GET(uri)
