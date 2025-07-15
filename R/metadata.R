@@ -270,7 +270,7 @@ extract_metadata <- function(uri, path) {
 	} else if (type == "zenodo") {
 		m <- meta_zenodo(js)
 	} else if (type == "figshare") {
-		m <- meta_figshare(js, path)
+		m <- meta_figshare(js, file.path(path, dataset_id))
 	} else {
 		m <- meta_mix(js, uri)
 	}
