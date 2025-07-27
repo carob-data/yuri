@@ -16,9 +16,12 @@ writeOK <- function(path, uu) {
 	writeLines(c(stamp, uu), file.path(path, "ok.txt"))
 }
 
+list_files <- function(path, recursive) {
+	list.files(path, full.names=TRUE, all.files=TRUE, recursive=recursive, include.dirs=!recursive, no..=TRUE)
+}
 
 
-.download_dataverse_files <- function(u, baseu, path, uname, domain, protocol, unzip, zipf) {
+.download_dataverse_files <- function(u, baseu, path, uname, domain, protocol, unzip, zipf, recursive=TRUE) {
 	pid <- unlist(strsplit(u, "\\?"))[2]
 	uu <- paste0(baseu, "/api/datasets/:persistentId?", pid)
 	
@@ -120,7 +123,7 @@ writeOK <- function(path, uu) {
 	}
 
 	writeOK(path, uu)
-	list.files(file.path(path), full.names = TRUE, recursive=TRUE)
+	list_files(path, recursive)
 }
 
 
@@ -171,7 +174,8 @@ writeOK <- function(path, uu) {
 	files
 }
 
-.download_dryad_files <- function(u, baseu, path, uname, unzip){ 
+
+.download_dryad_files <- function(u, baseu, path, uname, unzip, recursive=TRUE){ 
 	pid <- gsub(":", "%253A", gsub("/", "%252F", unlist(strsplit(u, "dataset/"))[2]))
 	uu <- paste0(baseu, "/api/v2/datasets/", pid)
 	y <- httr::GET(uu)
@@ -196,10 +200,10 @@ writeOK <- function(path, uu) {
 		}
 	}
 	if (done) writeOK(path, uu)
-	list.files(file.path(path), full.names = TRUE)
+	list_files(path, recursive)
 }
 
-.download_zenodo_files <- function(u, path, uname, unzip){
+.download_zenodo_files <- function(u, path, uname, unzip, recursive=TRUE){
   
 #	pid <- gsub("https://zenodo.org/records/", "", u)
 #	uu <- paste0("zenodo.org/api/deposit/depositions/", pid, "/files")
@@ -248,14 +252,13 @@ writeOK <- function(path, uu) {
 		}
 		writeOK(path, uu)
 	}
-
-	list.files(path, full.names = TRUE)
+	list_files(path, recursive)
 }
 
 
 download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-length"]])
 
-.download_figshare_files <- function(u, path, uname, unzip){
+.download_figshare_files <- function(u, path, uname, unzip, recursive=TRUE){
 
 	pid <- basename(u)
 	uu <- paste0("https://api.figshare.com/v2/collections/", pid)
@@ -324,12 +327,11 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 		}
 		writeOK(path, uu)
 	}
-
-	list.files(path, full.names = TRUE)
+	list_files(path, recursive)
 }
 
 
-.download_rothamsted_files <- function(u, path, uname, unzip) {
+.download_rothamsted_files <- function(u, path, uname, unzip, recursive=TRUE) {
 
 	uu <- gsub("dataset", "metadata", u)
 	bn <- basename(u)
@@ -349,7 +351,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 		}
 		writeOK(path, uu)
 	}	
-	list.files(path, full.names = TRUE)
+	list_files(path, recursive)
 }
 
 
@@ -368,7 +370,7 @@ http_address <- function(uri) {
 
 dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=TRUE) {
 
-	uname <- simpleURI(uri)
+	uname <- yuri::simpleURI(uri)
 	uri <- simpleURI(uname, reverse=TRUE)
 	
 	
@@ -383,7 +385,7 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 	dir.create(path, FALSE, TRUE)
 
 	if (cache && file.exists(file.path(path, "ok.txt"))) {
-		ff <- list.files(path, full.names=TRUE, recursive=recursive, include.dirs = !recursive)
+		ff <- list_files(path, recursive)
 		if (filter) ff <- filter_files(ff)
 		return(ff)
 	}
@@ -396,7 +398,7 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 		return(ff)
 	}
 
-	uri <- http_address(uri)
+	uri <- yuri:::http_address(uri)
 	
 	if (!file.exists(path)) {
 		stop(paste("cannot create path:", path))
@@ -412,7 +414,7 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 		x <- httr::GET(uri)
 	}
 
-	if (!x$status_code %in% c(200, 202)) {
+	if (!x$status_code %in% c(200, 202, 307)) {
 		message(paste("Dataset or resource not reachable.\nStatus code: ", x$status_code))
 		return()
 	}
@@ -422,18 +424,19 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 	baseu <- paste0(protocol, domain)
 	
 	if (grepl("/stash/|datadryad", u)) {	
-		ff <- .download_dryad_files(u, baseu, path, uname, unzip)
+		ff <- .download_dryad_files(u, baseu, path, uname, unzip, recursive)
 	} else if (grepl("rothamsted", u)) {
-		ff <- .download_rothamsted_files(u, path, uname, unzip)
+		ff <- .download_rothamsted_files(u, path, uname, unzip, recursive)
 	} else if (grepl("/dataset/", u)) {	
-		ff <- .download_ckan_files(u, baseu, path, uname, unzip)
+		ff <- .download_ckan_files(u, baseu, path, uname, unzip, recursive)
 	} else if (grepl("zenodo", u)) {
-		ff <- .download_zenodo_files(u, path, uname, unzip)
+		ff <- .download_zenodo_files(u, path, uname, unzip, recursive)
 	} else if (grepl("figshare", u)) {
-		ff <- .download_figshare_files(u, path, uname, unzip)
+		ff <- .download_figshare_files(u, path, uname, unzip, recursive)
 	} else {
-		ff <- .download_dataverse_files(u, baseu, path, uname, domain, protocol, unzip, zipf)
+		ff <- .download_dataverse_files(u, baseu, path, uname, domain, protocol, unzip, zipf, recursive)
 	}
+	# 
 	if (filter) {
 		filter_files(ff)
 	} else {
