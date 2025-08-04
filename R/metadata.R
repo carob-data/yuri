@@ -39,7 +39,8 @@ cleaner <- function(x) {
 #	x <- trimws(gsub('<span lan g=\"EN-US\">|</span>', "", x))
 	x <- gsub("<.*?>", "", x)
 	x <- gsub(paste0("(", b, ")+"), b, x)
-	gsub(b, "\n\n", gsub(paste0(b, "$"), "", x))
+	x <- gsub(b, "\n\n", gsub(paste0(b, "$"), "", x))
+	trimws(x)
 }
 
 meta_dataverse <- function(x) {
