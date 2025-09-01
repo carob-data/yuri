@@ -5,7 +5,7 @@
 
 
 filter_files <- function(x) { 
-	x <- grep("\\.json$|\\.pdf$|\\.doc$|\\.docx$|\\.zip$", x, value=TRUE, invert=TRUE)
+	x <- grep("\\.json$|\\.pdf$|\\.doc$|\\.docx$|\\.zip$|\\.gz$|\\.7z$", x, value=TRUE, invert=TRUE)
 	# remove opened excel files
 	grep("/~$", x, fixed=TRUE, invert=TRUE, value=TRUE)
 }
@@ -118,8 +118,8 @@ list_files <- function(path, recursive) {
 	}	
 	if (unzip) {
 		ff <- .dataverse_unzip(zipf, path)
-		f7 <- list.files(path, pattern="\\.7z$", full.names=TRUE)
-		ff <- .dataverse_unzip(f7, path)
+		fz <- list.files(path, pattern="\\.7z$|\\.gz$", full.names=TRUE)
+		ff <- .dataverse_unzip(fz, path)
 	}
 
 	writeOK(path, uu)

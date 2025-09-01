@@ -28,7 +28,7 @@
 			}
 		}
 	}
-	i <- grepl("7z$", files, ignore.case=TRUE)
+	i <- grepl("\\.7z$", files, ignore.case=TRUE)
 	if (any(i)) {
 		f7 <- files[i]
 		for (f in f7) {
@@ -36,6 +36,16 @@
 			allf <- c(allf, file.path(path, fext))
 		}
 	}
+
+	i <- grepl("\\.gz$", files, ignore.case=TRUE)
+	if (any(i)) {
+		fgz <- files[i]
+		for (f in fgz) {
+			fext <- R.utils::gunzip(f, remove=FALSE)
+			allf <- c(allf, fext)
+		}
+	}
+
 	allf
 }
 
