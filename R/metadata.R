@@ -56,7 +56,7 @@ meta_dataverse <- function(x) {
 
 	i<- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "title")
 	if (length(i) > 0) {
-		titl <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]
+		titl <- trimws(x$data$latestVersion$metadataBlocks$citation$fields$value[[i]])
 	} else {
 		titl <- as.character(NA)
 	}

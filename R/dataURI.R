@@ -148,9 +148,18 @@ list_files <- function(path, recursive) {
 	d$name[i] <- paste0(d$name[i], "_2")
 	
 	for (i in 1:nrow(d)) {
-		u <- file.path(baseu, "dataset", d$package_id[i], "resource", d$id[i], "download", d$name[i])
+#		u <- file.path(baseu, "dataset", d$package_id[i], "resource", d$id[i], "download", d$name[i])
+#		#if (d$available[i] == "yes") { "active" ?
+#		outf <- file.path(path, d$name[i])
+		if (!is.null(d$url)) {
+			u <- d$url[i]
+			outf <- file.path(path, basename(u))
+		} else {
+			u <- file.path(baseu, "dataset", d$package_id[i], "resource", d$id[i], "download", d$name[i])
+			outf <- file.path(path, d$name[i])
+		}
 		#if (d$available[i] == "yes") { "active" ?
-		outf <- file.path(path, d$name[i])
+		
 		if ((!overwrite) & file.exists(outf)) next
 		ok <- try(utils::download.file(d$url[i], outf, mode="wb", quiet=TRUE), silent=TRUE )
 		if (inherits(ok, "try-error")) {
