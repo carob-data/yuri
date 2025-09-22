@@ -26,6 +26,12 @@ setp <- function(x) {
 	paste(na.omit(trimws(x)), collapse="; ")
 }
 
+fix_authors <- function(x) {
+	x <- x[!is.na(x)]
+	x <- x[x != ""]
+	x <- gsub("^Dr\\.|^Prof\\.", "", x)
+	unique(trimws(x))
+}
 
 
 cleaner <- function(x) {
@@ -126,7 +132,8 @@ meta_CKAN <- function(x) {
 	aut <- x$result$creator
 	i <- grep("contributor_person$|contributor_person_*.[0-9]$", names(x$result))	
 	r <- unlist(x$result[i])
-	aut <- c(aut, r[order(names(r))])
+	aut <- c(aut, r[gtools::mixedorder(names(r))])
+	aut <- fix_authors(aut)
 
 	i <- grep("contributor_projectlead_institute", names(x$result))	
 	aff1 <- unique(unlist(x$result[i]))
@@ -275,6 +282,8 @@ extract_metadata <- function(uri, path) {
 	} else {
 		m <- meta_mix(js, uri)
 	}
+
+
 	data.frame(
 		uri = uri,
 		dataset_id = dataset_id,
