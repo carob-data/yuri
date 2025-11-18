@@ -370,7 +370,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 
 http_address <- function(uri) {
 	if (grepl("^doi:", uri)) {
-		gsub("^doi:", "https://dx.doi.org/", uri)
+		gsub("^doi:", "https://doi.org/", uri)
 	} else if (grepl("^hdl:", uri)) {
 		gsub("^hdl:", "https://hdl.handle.net/", uri)
 	}
@@ -417,7 +417,8 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 	httr::set_config(httr::config(ssl_verifypeer = 0L))
 
 	# For CIRAD / figshare
-	if (grepl("18167|figshare", uri)) {
+	# if (grepl("18167|figshare", uri)) {
+	if (grepl("figshare", uri)) {
 		x <- httr::GET(uri, httr::add_headers("user-agent" = "Mozilla/5.0", "Cache-Control" = "no-cache"))
 	} else {
 		x <- httr::GET(uri)
