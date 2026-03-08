@@ -1,4 +1,5 @@
 export(
 dataURI, simpleURI,
-read_metadata, extract_metadata
+read_metadata, extract_metadata,
+authenticate
 )

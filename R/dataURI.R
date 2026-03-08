@@ -4,6 +4,19 @@
 # license 	
 
 
+.yuri_environment <- new.env(parent=emptyenv())
+
+authenticate <- function(x) {
+	stopifnot(ncol(x) == 3)
+	stopifnot(all(names(x) == c("service", "username", "password")))
+	x$service <- toupper(x$service)
+	stopifnot(all(x$service %in% c("DRYAD", "LSMS")))
+	for (i in 1:nrow(x)) {
+		.yuri_environment[[x[i,1]]] <- list(username=x$username[i], password=x$password[i])
+	}
+}
+
+
 filter_files <- function(x) { 
 	x <- grep("\\.json$|\\.pdf$|\\.doc$|\\.docx$|\\.zip$|\\.gz$|\\.7z$", x, value=TRUE, invert=TRUE)
 	# remove opened excel files
@@ -184,7 +197,41 @@ list_files <- function(path, recursive) {
 }
 
 
+get_dryad_token <- function() {		
+	dtok <- .yuri_environment$DRYAD$token
+	if (!is.null(dtok)) {
+		if (is.null(dtok$error)) {
+			expires <- as.POSIXct(as.Date("1970-01-01"), tz="") + dtok$created_at + dtok$expires_in
+			if (Sys.time() < expires) {
+				return(dtok$access_token)
+			}
+		}
+	}
+	if (is.null(.yuri_environment$DRYAD$username) | is.null(.yuri_environment$DRYAD$password)) {
+		stop("you need to set your DRYAD username and password to download these data. See yuri::authenticate")
+	}
+
+	response <- httr::POST("https://datadryad.org/oauth/token",
+	  body = list(
+		client_id = .yuri_environment$DRYAD$username,
+		client_secret = .yuri_environment$DRYAD$password,
+		grant_type = "client_credentials"
+	  ),  encode = "form" )
+	  
+	dtok <- httr::content(response)
+	if (!is.null(dtok$error)) {
+		error(paste("DRYAD: ", dtok$token$error_description))
+	} 
+	.yuri_environment$DRYAD$token <- dtok
+	dtok$access_token
+}
+
+
+
 .download_dryad_files <- function(u, baseu, path, uname, unzip, recursive=TRUE){ 
+
+	token <- yuri:::get_dryad_token()
+
 	pid <- gsub(":", "%253A", gsub("/", "%252F", unlist(strsplit(u, "dataset/"))[2]))
 	uu <- paste0(baseu, "/api/v2/datasets/", pid)
 	y <- httr::GET(uu)
@@ -192,23 +239,26 @@ list_files <- function(path, recursive) {
 		return(NULL)
 	}
   
-	ry <- httr::content(y, as="raw")
-	meta <- rawToChar(ry)
+	meta <- httr::content(y, as="raw")
+	meta <- rawToChar(meta)
 	writeLines(meta, file.path(path, paste0(uname, ".json")))
 	js <- jsonlite::fromJSON(meta)
-	d <- js$id
-	done <- TRUE
-	outf <- file.path(path, paste0(uname, ".zip"))
-	ok <- try(utils::download.file(file.path(uu,"download"), outf, headers = c("User-Agent" = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 1.0.3705; .NET CLR 1.1.4322)"), mode="wb", quiet=TRUE) )
-	if (inherits(ok, "try-error")) {
-		print("cannot download ", paste0(uname, ".zip"))
-		done <- FALSE
+	#d <- js$id
+	
+	href <- paste0("https://datadryad.org", js[["_links"]][["stash:download"]]$href)	
+	res <- httr::GET(href, httr::add_headers(Authorization = paste("Bearer", token)), httr::config(followlocation = TRUE))
+	if (res$status_code != 200) {
+		msg <- httr::content(res, as="raw")
+		msg <- rawToChar(msg)	
+		stop(paste0("cannot download ", uname, ".zip\nstatus code = ", res$status_code, ": ", msg), call.=FALSE)
 	} else {
+		outf <- file.path(path, paste0(uname, ".zip"))
+		writeBin(httr::content(res, "raw"), outf)	
 		if (unzip) {
 			utils::unzip(outf, exdir = file.path(path))	
 		}
+		writeOK(path, uu)
 	}
-	if (done) writeOK(path, uu)
 	list_files(path, recursive)
 }
 
@@ -392,7 +442,10 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 	}
 
 	dir.create(path, FALSE, TRUE)
-
+	if (!file.exists(path)) {
+		stop(paste("cannot create path:", path))
+	}
+	
 	if (cache && file.exists(file.path(path, "ok.txt"))) {
 		ff <- list_files(path, recursive)
 		if (filter) ff <- filter_files(ff)
@@ -408,10 +461,6 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 	}
 
 	uri <- yuri:::http_address(uri)
-	
-	if (!file.exists(path)) {
-		stop(paste("cannot create path:", path))
-	}
 	
 	# temporary fix because WorldAgroFor https cert has expired
 	httr::set_config(httr::config(ssl_verifypeer = 0L))
