@@ -197,7 +197,7 @@ list_files <- function(path, recursive) {
 }
 
 
-get_dryad_token <- function() {		
+get_dryad_token <- function(username=NULL, password=NULL) {		
 	dtok <- .yuri_environment$DRYAD$token
 	if (!is.null(dtok)) {
 		if (is.null(dtok$error)) {
@@ -207,17 +207,18 @@ get_dryad_token <- function() {
 			}
 		}
 	}
-	if (is.null(.yuri_environment$DRYAD$username) | is.null(.yuri_environment$DRYAD$password)) {
-		stop("you need to set your DRYAD username and password to download these data. See yuri::authenticate")
+	
+	if (is.null(username) || is.null(password)) {
+		if (is.null(.yuri_environment$DRYAD$username) || is.null(.yuri_environment$DRYAD$password)) {
+			stop("you need to provide your DRYAD username and password or set them with yuri::authenticate")
+		}
+		username <- .yuri_environment$DRYAD$username
+		password <- .yuri_environment$DRYAD$password
 	}
 
 	response <- httr::POST("https://datadryad.org/oauth/token",
-	  body = list(
-		client_id = .yuri_environment$DRYAD$username,
-		client_secret = .yuri_environment$DRYAD$password,
-		grant_type = "client_credentials"
-	  ),  encode = "form" )
-	  
+		body = list(client_id=username, client_secret=password, grant_type="client_credentials"), encode="form")
+
 	dtok <- httr::content(response)
 	if (!is.null(dtok$error)) {
 		error(paste("DRYAD: ", dtok$token$error_description))
@@ -228,9 +229,9 @@ get_dryad_token <- function() {
 
 
 
-.download_dryad_files <- function(u, baseu, path, uname, unzip, recursive=TRUE){ 
+.download_dryad_files <- function(u, baseu, path, uname, unzip, recursive=TRUE, username=NULL, password=NULL){ 
 
-	token <- yuri:::get_dryad_token()
+	token <- yuri:::get_dryad_token(username, password)
 
 	pid <- gsub(":", "%253A", gsub("/", "%252F", unlist(strsplit(u, "dataset/"))[2]))
 	uu <- paste0(baseu, "/api/v2/datasets/", pid)
@@ -427,7 +428,7 @@ http_address <- function(uri) {
 }
 
 
-dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=TRUE) {
+dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=TRUE, username=NULL, password=NULL) {
 
 	uname <- yuri::simpleURI(uri)
 	uri <- yuri::simpleURI(uname, reverse=TRUE)
@@ -483,7 +484,7 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 	baseu <- paste0(protocol, domain)
 	
 	if (grepl("/stash/|datadryad", u)) {	
-		ff <- .download_dryad_files(u, baseu, path, uname, unzip, recursive)
+		ff <- .download_dryad_files(u, baseu, path, uname, unzip, recursive, username, password)
 	} else if (grepl("rothamsted", u)) {
 		ff <- .download_rothamsted_files(u, path, uname, unzip, recursive)
 	} else if (grepl("/dataset/", u)) {	
