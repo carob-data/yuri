@@ -221,7 +221,7 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 
 	dtok <- httr::content(response)
 	if (!is.null(dtok$error)) {
-		error(paste("DRYAD: ", dtok$token$error_description))
+		stop(paste("DRYAD: ", dtok$token$error_description))
 	} 
 	.yuri_environment$DRYAD$token <- dtok
 	dtok$access_token
