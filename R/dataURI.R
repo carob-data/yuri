@@ -53,6 +53,10 @@ list_files <- function(path, recursive) {
 		utils::download.file(uu, tmpf, quiet=TRUE, mode="wb")
 	}
 	js <- readLines(tmpf, encoding = "UTF-8", warn=FALSE)
+	if (js[1] == "<?xml version='1.0' encoding='UTF-8' ?>") {
+		stop("The Harvard Dataverse API is not available")
+	}
+
 	js <- jsonlite::fromJSON(js)
 	fjs <- js$data$latestVersion$files
 	jsp <- jsonlite::toJSON(js, pretty=TRUE)
