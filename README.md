@@ -50,7 +50,7 @@ t(m)
 #data_citation     "Cooke, Diane; White, Jeff; Chanzy, André; Evett, Steve; Webber, Heidi (2025). Wheat crop water use in semi-arid and Mediterranean environments. Harvard Dataverse. Version 1.0. doi:10.7910/DVN/HDKKAL"       
 ```
 
-Note the "dataset_id". This is derived from the URI by replacing the colon `:` and forward slash `/` with an underscore `_`. The benefit of the dataset_id is that it can be used in file names, unlike the dataset_id. 
+Note the "dataset_id". This is derived from the URI by replacing the colon `:` and forward slash `/` with an underscore `_`. The benefit of the dataset_id is that it can be used in file names, unlike the uri itself. 
 
 ```{r}
 yuri::simpleURI(uri)
