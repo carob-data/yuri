@@ -434,9 +434,8 @@ http_address <- function(uri) {
 
 dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=TRUE, username=NULL, password=NULL) {
 
-	uname <- yuri::simpleURI(uri)
+	uname <- yuri::simpleURI(uri)	
 	uri <- yuri::simpleURI(uname, reverse=TRUE)
-	
 	
 	#uripath=TRUE
 	#if (uripath) 
@@ -465,14 +464,19 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 		return(ff)
 	}
 
-	uri <- yuri:::http_address(uri)
+
+	if (isTRUE(grepl("^hdl:11529", uri))) {
+		uri <- paste0("https://data.cimmyt.org/dataset.xhtml?persistentId=", uri)
+	} else {
+		uri <- yuri:::http_address(uri)
+	}
 	
 	# temporary fix because WorldAgroFor https cert has expired
 	httr::set_config(httr::config(ssl_verifypeer = 0L))
 
 	# For CIRAD / figshare
 	# if (grepl("18167|figshare", uri)) {
-	if (grepl("figshare", uri)) {
+	if (isTRUE(grepl("figshare", uri))) {
 		x <- httr::GET(uri, httr::add_headers("user-agent" = "Mozilla/5.0", "Cache-Control" = "no-cache"))
 	} else {
 		x <- httr::GET(uri)
