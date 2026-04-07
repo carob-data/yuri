@@ -18,7 +18,7 @@ authenticate <- function(x) {
 
 
 filter_files <- function(x) { 
-	x <- grep("\\.json$|\\.pdf$|\\.doc$|\\.docx$|\\.zip$|\\.gz$|\\.7z$", x, value=TRUE, invert=TRUE)
+	x <- grep("\\.json$|\\.pdf$|\\.doc$|\\.docx$|\\.zip$|\\.gz$|\\.7z$|\\.tar$|\\.tgz$|\\.tar\\.gz$", x, value=TRUE, invert=TRUE)
 	# remove opened excel files
 	grep("/~$", x, fixed=TRUE, invert=TRUE, value=TRUE)
 }
@@ -135,8 +135,7 @@ list_files <- function(path, recursive) {
 	}	
 	if (unzip) {
 		ff <- .dataverse_unzip(zipf, path)
-		fz <- list.files(path, pattern="\\.7z$|\\.gz$", full.names=TRUE)
-		ff <- .dataverse_unzip(fz, path)
+		.dataverse_extract_archives(path)
 	}
 
 	writeOK(path, uu)
@@ -451,6 +450,9 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 	}
 	
 	if (cache && file.exists(file.path(path, "ok.txt"))) {
+		if (unzip) {
+			.dataverse_extract_archives(path)
+		}
 		ff <- list_files(path, recursive)
 		if (filter) ff <- filter_files(ff)
 		return(ff)
@@ -460,6 +462,10 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 	if (cache & file.exists(zipf)) {
 		zipf <- list.files(path, paste0(uname, ".*zip$"), full.names=TRUE)		
 		ff <- .dataverse_unzip(zipf, path, unzip)
+		if (isTRUE(unzip)) {
+			.dataverse_extract_archives(path)
+		}
+		ff <- list_files(path, recursive)
 		if (filter) ff <- filter_files(ff)
 		return(ff)
 	}

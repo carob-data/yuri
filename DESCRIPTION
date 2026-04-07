@@ -2,7 +2,7 @@ Package: yuri
 Type: Package
 Title: Download research data
 Description: Download research data with an URI such as a DOI or HDL. Intended to work with Dataverse, CKAN, Dryad, Zenodo, and Figshare APIs such that the data can be included into reproducible workflows.
-Version: 0.2-7
+Version: 0.2-8
 Depends: R (>= 4.1.0)
 Imports: httr, archive, jsonlite, R.utils, gtools
 Date: 2026-03-08

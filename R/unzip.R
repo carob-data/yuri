@@ -37,7 +37,25 @@
 		}
 	}
 
-	i <- grepl("\\.gz$", files, ignore.case=TRUE)
+	## tar / compressed tar (before plain .gz — avoids gunzip on .tar.gz)
+	i <- grepl("\\.tar$|\\.tgz$|\\.tar\\.gz$", files, ignore.case=TRUE)
+	if (any(i)) {
+		ft <- files[i]
+		for (f in ft) {
+			nms <- try(utils::untar(f, list = TRUE, tar = "internal"), silent = TRUE)
+			if (inherits(nms, "try-error") || length(nms) < 1) {
+				next
+			}
+			ok <- try(utils::untar(f, exdir = path, tar = "internal"), silent = TRUE)
+			if (inherits(ok, "try-error")) {
+				warning("could not untar ", basename(f), call. = FALSE)
+				next
+			}
+			allf <- c(allf, nms)
+		}
+	}
+
+	i <- grepl("\\.gz$", files, ignore.case=TRUE) & !grepl("\\.tar\\.gz$", files, ignore.case=TRUE)
 	if (any(i)) {
 		fgz <- files[i]
 		for (f in fgz) {
@@ -47,5 +65,23 @@
 	}
 
 	allf
+}
+
+
+## After Dataverse zip download: extract nested .7z, .gz, .tar, .tgz, .tar.gz until stable or max_iter.
+.dataverse_extract_archives <- function(path, unzip_more = TRUE, max_iter = 5L) {
+	for (iter in seq_len(max_iter)) {
+		fz <- list.files(path, pattern = "\\.7z$|\\.gz$|\\.tar$|\\.tgz$|\\.tar\\.gz$", full.names = TRUE, ignore.case = TRUE)
+		if (length(fz) == 0) {
+			break
+		}
+		n0 <- length(list.files(path, recursive = TRUE, include.dirs = FALSE))
+		.dataverse_unzip(fz, path, unzip_more = unzip_more)
+		n1 <- length(list.files(path, recursive = TRUE, include.dirs = FALSE))
+		if (n1 <= n0) {
+			break
+		}
+	}
+	invisible(TRUE)
 }
 
