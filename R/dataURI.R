@@ -471,11 +471,11 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 	}
 
 
-	if (isTRUE(grepl("^hdl:11529", uri))) {
-		uri <- paste0("https://data.cimmyt.org/dataset.xhtml?persistentId=", uri)
-	} else {
+#	if (isTRUE(grepl("^hdl:11529", uri))) {
+#		uri <- paste0("https://data.cimmyt.org/dataset.xhtml?persistentId=", uri)
+#	} else {
 		uri <- yuri:::http_address(uri)
-	}
+#	}
 	
 	# temporary fix because WorldAgroFor https cert has expired
 	httr::set_config(httr::config(ssl_verifypeer = 0L))
