@@ -59,7 +59,7 @@
 	if (any(i)) {
 		fgz <- files[i]
 		for (f in fgz) {
-			fext <- R.utils::gunzip(f, remove=FALSE)
+			fext <- R.utils::gunzip(f, remove = FALSE, skip = TRUE)
 			allf <- c(allf, fext)
 		}
 	}
