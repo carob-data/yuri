@@ -93,7 +93,45 @@ list_files <- function(path, recursive) {
 }
 
 
-.dataverse_guestbook_response_body <- function(guestbook_id, baseu, uu, name_arg = NULL, email_arg = NULL, institute_arg = NULL, api_token = NULL) {
+.dataverse_guestbook_stop_answers_or_token <- function(cq, any_restricted_files) {
+	has_pwd_question <- FALSE
+	if (is.data.frame(cq) && nrow(cq) > 0 && "type" %in% names(cq)) {
+		t <- tolower(as.character(cq$type))
+		has_pwd_question <- any(grepl("password", t, fixed = TRUE), na.rm = TRUE)
+	}
+	qtxt <- if (is.data.frame(cq) && nrow(cq) > 0 && "question" %in% names(cq)) {
+		paste(as.character(cq$question), collapse = " ")
+	} else {
+		""
+	}
+	if (!has_pwd_question && nzchar(qtxt)) {
+		has_pwd_question <- grepl("password", tolower(qtxt), fixed = TRUE)
+	}
+	tok <- paste0(
+		"Dataverse guestbook requires responses to custom questions. ",
+		"Set options(yuri.dataverse.guestbook = list(answers = list(list(id = ID, value = \"...\"), ...))). ",
+		"Find question IDs via GET .../api/guestbooks/{guestbookId} on your Dataverse server."
+	)
+	if (isTRUE(any_restricted_files) || isTRUE(has_pwd_question)) {
+		tok <- paste0(
+			"This dataset limits file access (restricted files and/or terms of access). ",
+			"Downloads typically require a Dataverse API token: set environment variable DATAVERSE_API_TOKEN ",
+			"(or YURI_DATAVERSE_PASSWORD) or pass password = to yuri::dataURI(). ",
+			if (isTRUE(has_pwd_question) && !isTRUE(any_restricted_files)) {
+				"The guestbook may include a password-style field; still provide answers for custom questions if required. "
+			} else if (isTRUE(any_restricted_files)) {
+				"After your account can access the files, you may still need guestbook answers. "
+			} else {
+				""
+			},
+			tok
+		)
+	}
+	stop(tok, call. = FALSE)
+}
+
+
+.dataverse_guestbook_response_body <- function(guestbook_id, baseu, uu, name_arg = NULL, email_arg = NULL, institute_arg = NULL, api_token = NULL, any_restricted_files = FALSE) {
 	tmpf <- tempfile()
 	on.exit(unlink(tmpf), add = TRUE)
 	gbu <- paste0(baseu, "/api/guestbooks/", guestbook_id)
@@ -121,7 +159,7 @@ list_files <- function(path, recursive) {
 	cq <- gb$customQuestions
 	if (is.data.frame(cq) && nrow(cq) > 0) {
 		if (is.null(opt$answers)) {
-			stop("this dataset uses a Dataverse guestbook with custom questions; set options(yuri.dataverse.guestbook = list(..., answers = list(list(id = ID, value = \"...\"), ...)))", call. = FALSE)
+			.dataverse_guestbook_stop_answers_or_token(cq, any_restricted_files)
 		}
 		out$answers <- opt$answers
 	} else {
@@ -221,6 +259,14 @@ list_files <- function(path, recursive) {
 	jsp <- jsonlite::toJSON(js, pretty=TRUE)
 	writeLines(jsp, file.path(path, paste0(uname, ".json")))
 	f <- if(is.null(fjs$dataFile)) {fjs$datafile} else {fjs$dataFile}
+	## `restricted` lives on each file row next to `dataFile`, not inside the nested dataFile table
+	if (!is.null(f) && NROW(f) > 0L && !is.null(fjs$restricted)) {
+		nr <- nrow(f)
+		rlen <- length(fjs$restricted)
+		if (nr == rlen) {
+			f$restricted <- fjs$restricted
+		}
+	}
 	f$checksum <- NULL
 	f$tabularTags <- NULL
 	if (!is.null(f$categories)) {
@@ -234,10 +280,22 @@ list_files <- function(path, recursive) {
 	fn <- file.path(path, paste0(uname, "_files.txt"))
 	try(utils::write.csv(f, fn))
 	rest <- f$restricted
+	any_fjs_restricted <- FALSE
+	if (!is.null(fjs$restricted)) {
+		any_fjs_restricted <- isTRUE(any(as.logical(fjs$restricted), na.rm = TRUE))
+	}
 	if (!is.null(rest)) {
-		f <- f[!rest, ]
+		rest_l <- as.logical(rest)
+		rest_l[is.na(rest_l)] <- FALSE
+		f <- f[!rest_l, , drop = FALSE]
 		if (nrow(f) == 0) {
-			stop("access to the files is restricted")
+			stop("access to these files is restricted on the Dataverse server (metadata field restricted=TRUE).\n
+				Provide a Dataverse API token: set environment variable DATAVERSE_API_TOKEN\n 
+				(or YURI_DATAVERSE_PASSWORD), or pass password = to yuri::dataURI().\n 
+				If the dataset also uses a guestbook, supply options(yuri.dataverse.guestbook) including\n 
+				answers = if the server requires custom guestbook responses."
+			),
+			call. = FALSE
 		}
 		warning("access to some files is restricted")
 	}
@@ -247,7 +305,7 @@ list_files <- function(path, recursive) {
 	gb_id <- .dataverse_dataset_guestbook_id(js)
 	guestbook_body <- NULL
 	if (!is.null(gb_id)) {
-		guestbook_body <- .dataverse_guestbook_response_body(gb_id, baseu, uu, name_arg = name_arg, email_arg = email_arg, institute_arg = institute_arg, api_token = api_token)
+		guestbook_body <- .dataverse_guestbook_response_body(gb_id, baseu, uu, name_arg = name_arg, email_arg = email_arg, institute_arg = institute_arg, api_token = api_token, any_restricted_files = any_fjs_restricted)
 	}
 
 	if (sum(f$originalFileSize, na.rm=TRUE) < 10000000) {
