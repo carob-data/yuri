@@ -34,20 +34,179 @@ list_files <- function(path, recursive) {
 }
 
 
-.download_dataverse_files <- function(u, baseu, path, uname, domain, protocol, unzip, zipf, recursive=TRUE) {
+.dataverse_insecure_dl <- function(uu, fu) {
+	grepl("worldagroforestry", uu) || grepl("cirad.fr", uu) || grepl("cipotato", uu) ||
+		grepl("worldagroforestry", fu) || grepl("cirad.fr", fu) || grepl("cipotato", fu)
+}
+
+
+.dataverse_pick_guestbook_field <- function(opt, field, env_names, default, arg = NULL) {
+	if (!is.null(arg)) {
+		ch <- as.character(arg)[1]
+		if (nzchar(ch)) return(ch)
+	}
+	if (length(env_names) > 0) {
+		ens <- if (is.list(env_names)) {
+			as.character(unlist(env_names, use.names = FALSE))
+		} else {
+			as.character(env_names)
+		}
+		for (i in seq_along(ens)) {
+			en <- ens[i]
+			ev <- Sys.getenv(en, "")
+			if (nzchar(ev)) return(ev)
+		}
+	}
+	v <- opt[[field]]
+	if (is.null(v) || (length(v) == 1L && !nzchar(as.character(v)))) {
+		return(default)
+	}
+	as.character(v)[1]
+}
+
+
+.dataverse_resolve_api_token <- function(password = NULL) {
+	if (!is.null(password)) {
+		ch <- as.character(password)[1]
+		if (nzchar(ch)) return(ch)
+	}
+	for (en in c("YURI_DATAVERSE_PASSWORD", "DATAVERSE_API_TOKEN", "DATAVERSE_KEY")) {
+		ev <- Sys.getenv(en, "")
+		if (nzchar(ev)) return(ev)
+	}
+	NULL
+}
+
+
+.dataverse_http_get_to_file <- function(url, dest, insecure, api_token) {
+	cfg <- if (isTRUE(insecure)) httr::config(ssl_verifypeer = 0L) else NULL
+	wd <- httr::write_disk(dest, overwrite = TRUE)
+	if (!is.null(api_token) && nzchar(api_token)) {
+		r <- httr::GET(url, cfg, wd, httr::add_headers(`X-Dataverse-key` = api_token))
+	} else {
+		r <- httr::GET(url, cfg, wd)
+	}
+	if (r$status_code < 200 || r$status_code >= 300) {
+		stop("Dataverse request failed (HTTP ", r$status_code, "): ", url)
+	}
+	invisible(TRUE)
+}
+
+
+.dataverse_guestbook_response_body <- function(guestbook_id, baseu, uu, name_arg = NULL, email_arg = NULL, institute_arg = NULL, api_token = NULL) {
+	tmpf <- tempfile()
+	on.exit(unlink(tmpf), add = TRUE)
+	gbu <- paste0(baseu, "/api/guestbooks/", guestbook_id)
+	insecure <- .dataverse_insecure_dl(uu, gbu)
+	if (!is.null(api_token) && nzchar(api_token)) {
+		.dataverse_http_get_to_file(gbu, tmpf, insecure, api_token)
+	} else if (insecure) {
+		utils::download.file(gbu, tmpf, quiet = TRUE, mode = "wb", method = "curl", extra = "-k")
+	} else {
+		utils::download.file(gbu, tmpf, quiet = TRUE, mode = "wb")
+	}
+	gb_raw <- jsonlite::fromJSON(tmpf)
+	if (!identical(gb_raw$status, "OK")) {
+		stop("could not retrieve Dataverse guestbook ", guestbook_id)
+	}
+	gb <- gb_raw$data
+	opt <- getOption("yuri.dataverse.guestbook")
+	if (!is.list(opt)) opt <- list()
+	out <- list(
+		name = .dataverse_pick_guestbook_field(opt, "name", c("YURI_DATAVERSE_USERNAME", "DATAVERSE_GUESTBOOK_NAME"), "unspecified", arg = name_arg),
+		email = .dataverse_pick_guestbook_field(opt, "email", c("YURI_DATAVERSE_EMAIL", "DATAVERSE_GUESTBOOK_EMAIL"), "guest@localhost", arg = email_arg),
+		institution = .dataverse_pick_guestbook_field(opt, "institution", c("YURI_DATAVERSE_INSTITUTE", "DATAVERSE_GUESTBOOK_INSTITUTION"), "unspecified", arg = institute_arg),
+		position = .dataverse_pick_guestbook_field(opt, "position", c("YURI_DATAVERSE_POSITION", "DATAVERSE_GUESTBOOK_POSITION"), "", arg = NULL)
+	)
+	cq <- gb$customQuestions
+	if (is.data.frame(cq) && nrow(cq) > 0) {
+		if (is.null(opt$answers)) {
+			stop("this dataset uses a Dataverse guestbook with custom questions; set options(yuri.dataverse.guestbook = list(..., answers = list(list(id = ID, value = \"...\"), ...)))", call. = FALSE)
+		}
+		out$answers <- opt$answers
+	} else {
+		out$answers <- list()
+	}
+	out
+}
+
+
+.dataverse_dataset_guestbook_id <- function(js) {
+	gid <- js$data$guestbookId
+	if (is.null(gid) || (length(gid) == 1L && is.na(gid))) {
+		gid <- js$data$latestVersion$guestbookId
+	}
+	if (is.null(gid) || (length(gid) == 1L && is.na(gid))) {
+		return(NULL)
+	}
+	as.integer(gid[[1]])
+}
+
+
+.dataverse_download_access_bundle <- function(fu, dest, uu, guestbook_body, api_token = NULL) {
+	insecure <- .dataverse_insecure_dl(uu, fu)
+	if (is.null(guestbook_body)) {
+		if (!is.null(api_token) && nzchar(api_token)) {
+			.dataverse_http_get_to_file(fu, dest, insecure, api_token)
+		} else if (insecure) {
+			utils::download.file(fu, dest, quiet = TRUE, mode = "wb", method = "curl", extra = "-k")
+		} else {
+			utils::download.file(fu, dest, mode = "wb", quiet = TRUE)
+		}
+		return(invisible(TRUE))
+	}
+	fu_post <- paste0(fu, "&signed=true")
+	body <- list(guestbookResponse = guestbook_body)
+	cfg <- if (insecure) httr::config(ssl_verifypeer = 0L) else NULL
+	post_h <- httr::add_headers(`Content-Type` = "application/json")
+	if (!is.null(api_token) && nzchar(api_token)) {
+		post_h <- httr::add_headers(`Content-Type` = "application/json", `X-Dataverse-key` = api_token)
+	}
+	r <- httr::POST(fu_post,
+		body = jsonlite::toJSON(body, auto_unbox = TRUE),
+		post_h,
+		config = cfg
+	)
+	txt <- httr::content(r, as = "text", encoding = "UTF-8")
+	j <- try(jsonlite::fromJSON(txt), silent = TRUE)
+	if (inherits(j, "try-error") || is.null(j$status)) {
+		stop("Dataverse guestbook POST failed (HTTP ", httr::status_code(r), "): ", substr(txt, 1, 500))
+	}
+	if (!identical(j$status, "OK")) {
+		stop("Dataverse guestbook: ", if (!is.null(j$message)) j$message else txt)
+	}
+	su <- j$data$signedUrl
+	if (is.null(su) || !nzchar(su)) {
+		stop("Dataverse did not return a signed download URL after guestbook submission")
+	}
+	if (!is.null(api_token) && nzchar(api_token)) {
+		.dataverse_http_get_to_file(su, dest, insecure, api_token)
+	} else if (insecure) {
+		utils::download.file(su, dest, quiet = TRUE, mode = "wb", method = "curl", extra = "-k")
+	} else {
+		utils::download.file(su, dest, mode = "wb", quiet = TRUE)
+	}
+	invisible(TRUE)
+}
+
+
+.download_dataverse_files <- function(u, baseu, path, uname, domain, protocol, unzip, zipf, recursive=TRUE, name_arg = NULL, email_arg = NULL, institute_arg = NULL, password_arg = NULL) {
 	pid <- unlist(strsplit(u, "\\?"))[2]
 	uu <- paste0(baseu, "/api/datasets/:persistentId?", pid)
-	
+	api_token <- .dataverse_resolve_api_token(password_arg)
+
 	# the nice way
 	#r <- httr::GET(uu)
 	#httr::stop_for_status(r)
 	#js <- httr::content(r, as = "text", encoding = "UTF-8")
 	# but for cimmyt...
 	tmpf <- tempfile()
-	
-	if (grepl("worldagroforestry", uu) || grepl("cirad.fr", uu) || grepl("cipotato", uu)) {
+
+	insecure_uu <- grepl("worldagroforestry", uu) || grepl("cirad.fr", uu) || grepl("cipotato", uu)
+	if (!is.null(api_token) && nzchar(api_token)) {
+		.dataverse_http_get_to_file(uu, tmpf, insecure_uu, api_token)
+	} else if (insecure_uu) {
 		# temporary fix because WorldAgroFor https cert has expired
-		# not sure why for CIP on Ubuntu (cert expired)
 		utils::download.file(uu, tmpf, quiet=TRUE, method="curl", extra="-k", mode="wb")
 	} else {
 		utils::download.file(uu, tmpf, quiet=TRUE, mode="wb")
@@ -85,16 +244,16 @@ list_files <- function(path, recursive) {
 	if (nrow(f) == 0) {
 		stop("no files!")
 	}
-	
+	gb_id <- .dataverse_dataset_guestbook_id(js)
+	guestbook_body <- NULL
+	if (!is.null(gb_id)) {
+		guestbook_body <- .dataverse_guestbook_response_body(gb_id, baseu, uu, name_arg = name_arg, email_arg = email_arg, institute_arg = institute_arg, api_token = api_token)
+	}
+
 	if (sum(f$originalFileSize, na.rm=TRUE) < 10000000) {
 		files <- paste0(f$id, collapse = ",")
 		fu <- paste0(protocol, domain, "/api/access/datafiles/", files, "?format=original")
-	## temporary fix because WorldAgroFor https cert has expired
-		if (grepl("worldagroforestry", fu) || grepl("cirad.fr", fu) || grepl("cipotato", fu)) {
-			utils::download.file(fu, zipf, quiet=TRUE, mode="wb", method="curl", extra="-k")
-		} else {
-			utils::download.file(fu, zipf, mode="wb", quiet=TRUE)
-		}
+		.dataverse_download_access_bundle(fu, zipf, uu, guestbook_body, api_token = api_token)
 	} else {
 		#for (i in 1:nrow(f)) {
 		#	print(paste("part", i)); utils::flush.console()
@@ -121,12 +280,7 @@ list_files <- function(path, recursive) {
 			files <- paste0(f$id[k], collapse = ",")
 			fu <- paste0(protocol, domain, "/api/access/datafiles/", files, "?format=original")
 			zipi <- file.path(path, paste0(uname, "_", i, ".zip"))
-			if (grepl("worldagroforestry", uu)  || grepl("cirad.fr", fu) || grepl("cipotato", fu)) {
-## temporary fix for expired https certificates
-				utils::download.file(fu, zipi, quiet=TRUE, mode="wb", method="curl", extra="-k")
-			} else {
-				utils::download.file(fu, zipi, mode="wb", quiet=TRUE)
-			}
+			.dataverse_download_access_bundle(fu, zipi, uu, guestbook_body, api_token = api_token)
 			f <- f[-k,]
 			zipf <- c(zipf, zipi)
 			if (nrow(f) == 0) break
@@ -431,7 +585,7 @@ http_address <- function(uri) {
 }
 
 
-dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=TRUE, username=NULL, password=NULL) {
+dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=TRUE, username=NULL, password=NULL, institute=NULL, email=NULL) {
 
 	uname <- yuri::simpleURI(uri)	
 	uri <- yuri::simpleURI(uname, reverse=TRUE)
@@ -508,7 +662,8 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=T
 	} else if (grepl("figshare", u)) {
 		ff <- .download_figshare_files(u, path, uname, unzip, recursive)
 	} else {
-		ff <- .download_dataverse_files(u, baseu, path, uname, domain, protocol, unzip, zipf, recursive)
+		ff <- .download_dataverse_files(u, baseu, path, uname, domain, protocol, unzip, zipf, recursive,
+			name_arg = username, email_arg = email, institute_arg = institute, password_arg = password)
 	}
 	# 
 	if (filter) {
