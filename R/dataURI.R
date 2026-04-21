@@ -419,7 +419,7 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 	
 	if (is.null(username) || is.null(password)) {
 		if (is.null(.yuri_environment$DRYAD$username) || is.null(.yuri_environment$DRYAD$password)) {
-			stop("you need to provide your DRYAD username and password or set them with yuri::authenticate")
+			return(NULL)
 		}
 		username <- .yuri_environment$DRYAD$username
 		password <- .yuri_environment$DRYAD$password
@@ -430,7 +430,7 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 
 	dtok <- httr::content(response)
 	if (!is.null(dtok$error)) {
-		stop(paste("DRYAD: ", dtok$token$error_description))
+		stop(paste0("DRYAD: ", dtok$error_description), call.=FALSE)
 	} 
 	.yuri_environment$DRYAD$token <- dtok
 	dtok$access_token
@@ -439,8 +439,6 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 
 
 .download_dryad_files <- function(u, baseu, path, uname, unzip, recursive=TRUE, username=NULL, password=NULL){ 
-
-	token <- yuri:::get_dryad_token(username, password)
 
 	pid <- gsub(":", "%253A", gsub("/", "%252F", unlist(strsplit(u, "dataset/"))[2]))
 	uu <- paste0(baseu, "/api/v2/datasets/", pid)
@@ -456,7 +454,17 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 	#d <- js$id
 	
 	href <- paste0("https://datadryad.org", js[["_links"]][["stash:download"]]$href)	
-	res <- httr::GET(href, httr::add_headers(Authorization = paste("Bearer", token)), httr::config(followlocation = TRUE))
+	res <- httr::GET(href, httr::config(followlocation = TRUE))
+	if (res$status_code %in% c(401, 403, 429)) {
+		token <- yuri:::get_dryad_token(username, password)
+		if (is.null(token)) {
+			stop(paste0(
+				"DRYAD download requires authentication (HTTP ", res$status_code, "). ",
+				"Provide DRYAD username/password ('client ID' / 'Secret') via yuri::authenticate() or yuri::dataURI()."
+			), call.=FALSE)
+		}
+		res <- httr::GET(href, httr::add_headers(Authorization = paste("Bearer", token)), httr::config(followlocation = TRUE))
+	}
 	if (res$status_code != 200) {
 		msg <- httr::content(res, as="raw")
 		msg <- rawToChar(msg)	
