@@ -289,13 +289,7 @@ list_files <- function(path, recursive) {
 		rest_l[is.na(rest_l)] <- FALSE
 		f <- f[!rest_l, , drop = FALSE]
 		if (nrow(f) == 0) {
-			stop("access to these files is restricted on the Dataverse server (metadata field restricted=TRUE).\n
-				Provide a Dataverse API token: set environment variable DATAVERSE_API_TOKEN\n 
-				(or YURI_DATAVERSE_PASSWORD), or pass password = to yuri::dataURI().\n 
-				If the dataset also uses a guestbook, supply options(yuri.dataverse.guestbook) including\n 
-				answers = if the server requires custom guestbook responses."
-			),
-			call. = FALSE
+			stop("access to these files is restricted on the Dataverse server (metadata field restricted=TRUE).\nProvide a Dataverse API token: set environment variable DATAVERSE_API_TOKEN\n(or YURI_DATAVERSE_PASSWORD), or pass password = to yuri::dataURI().\nIf the dataset also uses a guestbook, supply options(yuri.dataverse.guestbook) including\nanswers (if the server requires custom guestbook responses.)", call. = FALSE)
 		}
 		warning("access to some files is restricted")
 	}
