@@ -156,6 +156,14 @@ list_files <- function(path, recursive) {
 		institution = .dataverse_pick_guestbook_field(opt, "institution", c("YURI_DATAVERSE_INSTITUTE", "DATAVERSE_GUESTBOOK_INSTITUTION"), "unspecified", arg = institute_arg),
 		position = .dataverse_pick_guestbook_field(opt, "position", c("YURI_DATAVERSE_POSITION", "DATAVERSE_GUESTBOOK_POSITION"), "", arg = NULL)
 	)
+	# Dataverse server-side validates the email and rejects the whole request
+	# with an opaque "required but not present (Email)" message; check upfront.
+	if (!grepl("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", out$email, perl = TRUE)) {
+		stop("Dataverse guestbook email '", out$email, "' is not a valid address. ",
+		     "Fix the HARVARD entry in passwords.R (or set ",
+		     "options(yuri.dataverse.guestbook = list(email = \"...\"))).",
+		     call. = FALSE)
+	}
 	cq <- gb$customQuestions
 	if (is.data.frame(cq) && nrow(cq) > 0) {
 		if (is.null(opt$answers)) {
@@ -211,7 +219,21 @@ list_files <- function(path, recursive) {
 		stop("Dataverse guestbook POST failed (HTTP ", httr::status_code(r), "): ", substr(txt, 1, 500))
 	}
 	if (!identical(j$status, "OK")) {
-		stop("Dataverse guestbook: ", if (!is.null(j$message)) j$message else txt)
+		msg <- if (!is.null(j$message)) j$message else txt
+		# Dataverse rejects an empty/malformed required field with the
+		# (rather opaque) message "Guestbook Response entry is required but
+		# not present (Email)". Translate to something actionable.
+		m <- regmatches(msg, regexpr("required but not present \\(([^)]+)\\)", msg, perl = TRUE))
+		if (length(m) == 1L && nzchar(m)) {
+			fld <- tolower(sub(".*\\(([^)]+)\\).*", "\\1", m))
+			gb <- guestbook_body
+			val <- if (fld %in% names(gb)) gb[[fld]] else "<missing>"
+			stop("Dataverse guestbook rejected '", fld, "' = '", val, "'. ",
+			     "Set a valid value via passwords.R (HARVARD entry) or ",
+			     "options(yuri.dataverse.guestbook = list(", fld, " = \"...\")).",
+			     call. = FALSE)
+		}
+		stop("Dataverse guestbook: ", msg, call. = FALSE)
 	}
 	su <- j$data$signedUrl
 	if (is.null(su) || !nzchar(su)) {
@@ -287,11 +309,13 @@ list_files <- function(path, recursive) {
 	if (!is.null(rest)) {
 		rest_l <- as.logical(rest)
 		rest_l[is.na(rest_l)] <- FALSE
-		f <- f[!rest_l, , drop = FALSE]
-		if (nrow(f) == 0) {
-			stop("access to these files is restricted on the Dataverse server (metadata field restricted=TRUE).\nProvide a Dataverse API token: set environment variable DATAVERSE_API_TOKEN\n(or YURI_DATAVERSE_PASSWORD), or pass password = to yuri::dataURI().\nIf the dataset also uses a guestbook, supply options(yuri.dataverse.guestbook) including\nanswers (if the server requires custom guestbook responses.)", call. = FALSE)
+		if (any(rest_l)) {
+			f <- f[!rest_l, , drop = FALSE]
+			if (nrow(f) == 0) {
+				stop("access to these files is restricted on the Dataverse server (metadata field restricted=TRUE).\nProvide a Dataverse API token: set environment variable DATAVERSE_API_TOKEN\n(or YURI_DATAVERSE_PASSWORD), or pass password = to yuri::dataURI().\nIf the dataset also uses a guestbook, supply options(yuri.dataverse.guestbook) including\nanswers (if the server requires custom guestbook responses.)", call. = FALSE)
+			}
+			warning("access to some files is restricted", call. = FALSE)
 		}
-		warning("access to some files is restricted")
 	}
 	if (nrow(f) == 0) {
 		stop("no files!")
