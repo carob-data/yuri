@@ -1,19 +1,41 @@
 # Author: Robert J. Hijmans
-# Sept 2019
-# version 1
-# license 	
+# 2019-2026
+# license GPLv3
 
 
 .yuri_environment <- new.env(parent=emptyenv())
 
 authenticate <- function(x) {
-	stopifnot(ncol(x) == 3)
-	stopifnot(all(names(x) == c("service", "username", "password")))
-	x$service <- toupper(x$service)
-	stopifnot(all(x$service %in% c("DRYAD", "LSMS")))
-	for (i in 1:nrow(x)) {
-		.yuri_environment[[x[i,1]]] <- list(username=x$username[i], password=x$password[i])
+	if (!is.list(x) || is.data.frame(x)) {
+		stop("authenticate: 'x' must be a named list")
 	}
+	if (length(x) == 0L) return(invisible(TRUE))
+	nms <- toupper(names(x))
+	if (is.null(nms) || any(!nzchar(nms))) {
+		stop("authenticate: 'x' must be named by service")
+	}
+	known <- c("DRYAD", "LSMS", "DATAVERSE")
+	bad <- setdiff(nms, known)
+	if (length(bad) > 0) {
+		stop("authenticate: unsupported service(s): ", paste(bad, collapse = ", "),
+			". Known services: ", paste(known, collapse = ", "))
+	}
+	for (i in seq_along(x)) {
+		svc <- nms[i]
+		v <- as.list(x[[i]])
+		if (svc %in% c("DRYAD", "LSMS")) {
+			if (is.null(v$username) || is.null(v$password)) {
+				stop("authenticate: ", svc, " requires 'username' and 'password'")
+			}
+			.yuri_environment[[svc]] <- list(
+				username = as.character(v$username)[1],
+				password = as.character(v$password)[1]
+			)
+		} else {
+			.yuri_environment[[svc]] <- v
+		}
+	}
+	invisible(TRUE)
 }
 
 
@@ -40,28 +62,23 @@ list_files <- function(path, recursive) {
 }
 
 
-.dataverse_pick_guestbook_field <- function(opt, field, env_names, default, arg = NULL) {
+.dataverse_pick_guestbook_field <- function(field, env_names, default, arg = NULL) {
 	if (!is.null(arg)) {
 		ch <- as.character(arg)[1]
 		if (nzchar(ch)) return(ch)
 	}
-	if (length(env_names) > 0) {
-		ens <- if (is.list(env_names)) {
-			as.character(unlist(env_names, use.names = FALSE))
-		} else {
-			as.character(env_names)
-		}
-		for (i in seq_along(ens)) {
-			en <- ens[i]
-			ev <- Sys.getenv(en, "")
-			if (nzchar(ev)) return(ev)
+	dv <- .yuri_environment$DATAVERSE
+	if (is.list(dv)) {
+		v <- dv[[field]]
+		if (!is.null(v) && length(v) > 0L && nzchar(as.character(v)[1])) {
+			return(as.character(v)[1])
 		}
 	}
-	v <- opt[[field]]
-	if (is.null(v) || (length(v) == 1L && !nzchar(as.character(v)))) {
-		return(default)
+	for (en in as.character(env_names)) {
+		ev <- Sys.getenv(en, "")
+		if (nzchar(ev)) return(ev)
 	}
-	as.character(v)[1]
+	default
 }
 
 
@@ -69,6 +86,15 @@ list_files <- function(path, recursive) {
 	if (!is.null(password)) {
 		ch <- as.character(password)[1]
 		if (nzchar(ch)) return(ch)
+	}
+	dv <- .yuri_environment$DATAVERSE
+	if (is.list(dv)) {
+		for (nm in c("token", "api_token", "password")) {
+			v <- dv[[nm]]
+			if (!is.null(v) && length(v) > 0L && nzchar(as.character(v)[1])) {
+				return(as.character(v)[1])
+			}
+		}
 	}
 	for (en in c("YURI_DATAVERSE_PASSWORD", "DATAVERSE_API_TOKEN", "DATAVERSE_KEY")) {
 		ev <- Sys.getenv(en, "")
@@ -109,7 +135,7 @@ list_files <- function(path, recursive) {
 	}
 	tok <- paste0(
 		"Dataverse guestbook requires responses to custom questions. ",
-		"Set options(yuri.dataverse.guestbook = list(answers = list(list(id = ID, value = \"...\"), ...))). ",
+		"Register them via yuri::authenticate(list(DATAVERSE = list(answers = list(list(id = ID, value = \"...\"), ...)))). ",
 		"Find question IDs via GET .../api/guestbooks/{guestbookId} on your Dataverse server."
 	)
 	if (isTRUE(any_restricted_files) || isTRUE(has_pwd_question)) {
@@ -148,28 +174,27 @@ list_files <- function(path, recursive) {
 		stop("could not retrieve Dataverse guestbook ", guestbook_id)
 	}
 	gb <- gb_raw$data
-	opt <- getOption("yuri.dataverse.guestbook")
-	if (!is.list(opt)) opt <- list()
+	dv <- .yuri_environment$DATAVERSE
+	if (!is.list(dv)) dv <- list()
 	out <- list(
-		name = .dataverse_pick_guestbook_field(opt, "name", c("YURI_DATAVERSE_USERNAME", "DATAVERSE_GUESTBOOK_NAME"), "unspecified", arg = name_arg),
-		email = .dataverse_pick_guestbook_field(opt, "email", c("YURI_DATAVERSE_EMAIL", "DATAVERSE_GUESTBOOK_EMAIL"), "guest@localhost", arg = email_arg),
-		institution = .dataverse_pick_guestbook_field(opt, "institution", c("YURI_DATAVERSE_INSTITUTE", "DATAVERSE_GUESTBOOK_INSTITUTION"), "unspecified", arg = institute_arg),
-		position = .dataverse_pick_guestbook_field(opt, "position", c("YURI_DATAVERSE_POSITION", "DATAVERSE_GUESTBOOK_POSITION"), "", arg = NULL)
+		name        = .dataverse_pick_guestbook_field("name",        c("YURI_DATAVERSE_USERNAME",  "DATAVERSE_GUESTBOOK_NAME"),         "unspecified",      arg = name_arg),
+		email       = .dataverse_pick_guestbook_field("email",       c("YURI_DATAVERSE_EMAIL",     "DATAVERSE_GUESTBOOK_EMAIL"),        "guest@localhost",  arg = email_arg),
+		institution = .dataverse_pick_guestbook_field("institution", c("YURI_DATAVERSE_INSTITUTE", "DATAVERSE_GUESTBOOK_INSTITUTION"),  "unspecified",      arg = institute_arg),
+		position    = .dataverse_pick_guestbook_field("position",    c("YURI_DATAVERSE_POSITION",  "DATAVERSE_GUESTBOOK_POSITION"),     "",                 arg = NULL)
 	)
 	# Dataverse server-side validates the email and rejects the whole request
 	# with an opaque "required but not present (Email)" message; check upfront.
 	if (!grepl("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", out$email, perl = TRUE)) {
 		stop("Dataverse guestbook email '", out$email, "' is not a valid address. ",
-		     "Fix the HARVARD entry in passwords.R (or set ",
-		     "options(yuri.dataverse.guestbook = list(email = \"...\"))).",
+		     "Set a valid one via yuri::authenticate(list(DATAVERSE = list(email = \"...\"))).",
 		     call. = FALSE)
 	}
 	cq <- gb$customQuestions
 	if (is.data.frame(cq) && nrow(cq) > 0) {
-		if (is.null(opt$answers)) {
+		if (is.null(dv$answers)) {
 			.dataverse_guestbook_stop_answers_or_token(cq, any_restricted_files)
 		}
-		out$answers <- opt$answers
+		out$answers <- dv$answers
 	} else {
 		out$answers <- list()
 	}
@@ -229,8 +254,7 @@ list_files <- function(path, recursive) {
 			gb <- guestbook_body
 			val <- if (fld %in% names(gb)) gb[[fld]] else "<missing>"
 			stop("Dataverse guestbook rejected '", fld, "' = '", val, "'. ",
-			     "Set a valid value via passwords.R (HARVARD entry) or ",
-			     "options(yuri.dataverse.guestbook = list(", fld, " = \"...\")).",
+			     "Set a valid value via yuri::authenticate(list(DATAVERSE = list(", fld, " = \"...\"))).",
 			     call. = FALSE)
 		}
 		stop("Dataverse guestbook: ", msg, call. = FALSE)
@@ -312,7 +336,7 @@ list_files <- function(path, recursive) {
 		if (any(rest_l)) {
 			f <- f[!rest_l, , drop = FALSE]
 			if (nrow(f) == 0) {
-				stop("access to these files is restricted on the Dataverse server (metadata field restricted=TRUE).\nProvide a Dataverse API token: set environment variable DATAVERSE_API_TOKEN\n(or YURI_DATAVERSE_PASSWORD), or pass password = to yuri::dataURI().\nIf the dataset also uses a guestbook, supply options(yuri.dataverse.guestbook) including\nanswers (if the server requires custom guestbook responses.)", call. = FALSE)
+				stop("access to these files is restricted on the Dataverse server (metadata field restricted=TRUE).\nProvide a Dataverse API token via yuri::authenticate(list(DATAVERSE = list(token = \"...\")))\n(or set DATAVERSE_API_TOKEN / YURI_DATAVERSE_PASSWORD), or pass password = to yuri::dataURI().\nIf the dataset also uses a guestbook, also supply DATAVERSE$answers if the server requires custom responses.", call. = FALSE)
 			}
 			warning("access to some files is restricted", call. = FALSE)
 		}
