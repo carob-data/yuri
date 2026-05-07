@@ -5,6 +5,36 @@
 
 .yuri_environment <- new.env(parent=emptyenv())
 
+
+# Customisable hint shown by yuri's authentication-related error messages.
+# Stand-alone callers see the default prose mentioning yuri::authenticate(...).
+# Wrapper packages (e.g. carobiner) can register an alternative -- a string or
+# a function(default, ...) returning a string -- via yuri::set_auth_advice().
+set_auth_advice <- function(advice = NULL) {
+	if (!is.null(advice) && !is.character(advice) && !is.function(advice)) {
+		stop("set_auth_advice: 'advice' must be NULL, a character string, or a function(default, ...) returning character", call. = FALSE)
+	}
+	if (is.character(advice)) advice <- paste(advice, collapse = "\n")
+	.yuri_environment$auth_advice <- advice
+	invisible()
+}
+
+
+# Internal: return the caller-supplied auth advice (if any) or `default`.
+# Extra named context (e.g. service, kind) is forwarded to the override
+# function so callers can produce service-aware messages if they want.
+.auth_advice <- function(default = "", ...) {
+	v <- .yuri_environment$auth_advice
+	if (is.null(v)) return(default)
+	if (is.function(v)) {
+		out <- tryCatch(v(default, ...), error = function(e) NULL)
+		if (is.null(out) || !is.character(out)) return(default)
+		return(paste(out, collapse = "\n"))
+	}
+	v
+}
+
+
 authenticate <- function(x) {
 	if (!is.list(x) || is.data.frame(x)) {
 		stop("authenticate: 'x' must be a named list")
@@ -133,16 +163,23 @@ list_files <- function(path, recursive) {
 	if (!has_pwd_question && nzchar(qtxt)) {
 		has_pwd_question <- grepl("password", tolower(qtxt), fixed = TRUE)
 	}
+	gb_advice <- .auth_advice(
+		"Register them via yuri::authenticate(list(DATAVERSE = list(answers = list(list(id = ID, value = \"...\"), ...)))).",
+		service = "DATAVERSE", kind = "guestbook_answers"
+	)
 	tok <- paste0(
 		"Dataverse guestbook requires responses to custom questions. ",
-		"Register them via yuri::authenticate(list(DATAVERSE = list(answers = list(list(id = ID, value = \"...\"), ...)))). ",
-		"Find question IDs via GET .../api/guestbooks/{guestbookId} on your Dataverse server."
+		gb_advice,
+		" Find question IDs via GET .../api/guestbooks/{guestbookId} on your Dataverse server."
 	)
 	if (isTRUE(any_restricted_files) || isTRUE(has_pwd_question)) {
+		tok_advice <- .auth_advice(
+			"Downloads typically require a Dataverse API token: set environment variable DATAVERSE_API_TOKEN (or YURI_DATAVERSE_PASSWORD) or pass password = to yuri::dataURI().",
+			service = "DATAVERSE", kind = "token"
+		)
 		tok <- paste0(
 			"This dataset limits file access (restricted files and/or terms of access). ",
-			"Downloads typically require a Dataverse API token: set environment variable DATAVERSE_API_TOKEN ",
-			"(or YURI_DATAVERSE_PASSWORD) or pass password = to yuri::dataURI(). ",
+			tok_advice, " ",
 			if (isTRUE(has_pwd_question) && !isTRUE(any_restricted_files)) {
 				"The guestbook may include a password-style field; still provide answers for custom questions if required. "
 			} else if (isTRUE(any_restricted_files)) {
@@ -186,7 +223,10 @@ list_files <- function(path, recursive) {
 	# with an opaque "required but not present (Email)" message; check upfront.
 	if (!grepl("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", out$email, perl = TRUE)) {
 		stop("Dataverse guestbook email '", out$email, "' is not a valid address. ",
-		     "Set a valid one via yuri::authenticate(list(DATAVERSE = list(email = \"...\"))).",
+		     .auth_advice(
+		         "Set a valid one via yuri::authenticate(list(DATAVERSE = list(email = \"...\"))).",
+		         service = "DATAVERSE", kind = "guestbook_email"
+		     ),
 		     call. = FALSE)
 	}
 	cq <- gb$customQuestions
@@ -254,7 +294,10 @@ list_files <- function(path, recursive) {
 			gb <- guestbook_body
 			val <- if (fld %in% names(gb)) gb[[fld]] else "<missing>"
 			stop("Dataverse guestbook rejected '", fld, "' = '", val, "'. ",
-			     "Set a valid value via yuri::authenticate(list(DATAVERSE = list(", fld, " = \"...\"))).",
+			     .auth_advice(
+			         paste0("Set a valid value via yuri::authenticate(list(DATAVERSE = list(", fld, " = \"...\"))).") ,
+			         service = "DATAVERSE", kind = "guestbook_field", field = fld
+			     ),
 			     call. = FALSE)
 		}
 		stop("Dataverse guestbook: ", msg, call. = FALSE)
@@ -336,7 +379,13 @@ list_files <- function(path, recursive) {
 		if (any(rest_l)) {
 			f <- f[!rest_l, , drop = FALSE]
 			if (nrow(f) == 0) {
-				stop("access to these files is restricted on the Dataverse server (metadata field restricted=TRUE).\nProvide a Dataverse API token via yuri::authenticate(list(DATAVERSE = list(token = \"...\")))\n(or set DATAVERSE_API_TOKEN / YURI_DATAVERSE_PASSWORD), or pass password = to yuri::dataURI().\nIf the dataset also uses a guestbook, also supply DATAVERSE$answers if the server requires custom responses.", call. = FALSE)
+				stop("access to these files is restricted on the Dataverse server (metadata field restricted=TRUE).\n",
+				     .auth_advice(
+				         "Provide a Dataverse API token via yuri::authenticate(list(DATAVERSE = list(token = \"...\")))\n(or set DATAVERSE_API_TOKEN / YURI_DATAVERSE_PASSWORD), or pass password = to yuri::dataURI().",
+				         service = "DATAVERSE", kind = "token"
+				     ),
+				     "\nIf the dataset also uses a guestbook, also supply DATAVERSE$answers if the server requires custom responses.",
+				     call. = FALSE)
 			}
 			warning("access to some files is restricted", call. = FALSE)
 		}
@@ -508,7 +557,10 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 		if (is.null(token)) {
 			stop(paste0(
 				"DRYAD download requires authentication (HTTP ", res$status_code, "). ",
-				"Provide DRYAD username/password ('client ID' / 'Secret') via yuri::authenticate() or yuri::dataURI()."
+				.auth_advice(
+					"Provide DRYAD username/password ('client ID' / 'Secret') via yuri::authenticate() or yuri::dataURI().",
+					service = "DRYAD", kind = "credentials"
+				)
 			), call.=FALSE)
 		}
 		res <- httr::GET(href, httr::add_headers(Authorization = paste("Bearer", token)), httr::config(followlocation = TRUE))
