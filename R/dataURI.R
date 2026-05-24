@@ -153,13 +153,23 @@ list_files <- function(path, recursive) {
 	if (!has_pwd_question && nzchar(qtxt)) {
 		has_pwd_question <- grepl("password", tolower(qtxt), fixed = TRUE)
 	}
+	# List the actual questions (id + text + type) so the caller knows exactly
+	# what to put in their auth/passwords configuration.
+	qlist <- ""
+	if (is.data.frame(cq) && nrow(cq) > 0 && all(c("id", "question") %in% names(cq))) {
+		ids   <- as.character(cq$id)
+		qs    <- as.character(cq$question)
+		types <- if ("type" %in% names(cq)) paste0(" [", as.character(cq$type), "]") else rep("", nrow(cq))
+		qlist <- paste0("\nRequired guestbook questions:\n  ",
+			paste0("- id = ", ids, ", \"", qs, "\"", types, collapse = "\n  "))
+	}
 	gb_advice <- .auth_advice(
-		"Register them via yuri::authenticate(list(DATAVERSE = list(answers = list(list(id = ID, value = \"...\"), ...))))."
+		"Register them via yuri::authenticate(list(DATAVERSE = list(answers = \"<answer>\"))) -- a single string answers all questions; a character vector or list pairs positionally; list(list(id = ID, value = \"...\"), ...) is the explicit form."
 	)
 	tok <- paste0(
 		"Dataverse guestbook requires responses to custom questions. ",
 		gb_advice,
-		" Find question IDs via GET .../api/guestbooks/{guestbookId} on your Dataverse server."
+		qlist
 	)
 	if (isTRUE(any_restricted_files) || isTRUE(has_pwd_question)) {
 		tok_advice <- .auth_advice(
@@ -219,11 +229,65 @@ list_files <- function(path, recursive) {
 		if (is.null(dv$answers)) {
 			.dataverse_guestbook_stop_answers_or_token(cq, any_restricted_files)
 		}
-		out$answers <- dv$answers
+		out$answers <- .dataverse_normalize_answers(dv$answers, cq)
 	} else {
 		out$answers <- list()
 	}
 	out
+}
+
+
+# Accept several shorthand shapes for DATAVERSE$answers and return the
+# canonical list(list(id = ..., value = ...), ...) form (paired positionally
+# with `cq$id` when ids are not supplied):
+#   - "single string"                    -> apply to every question
+#   - c("a", "b")                        -> positional (one per question)
+#   - list("a", "b")                     -> positional
+#   - list(list(value = "a"), ...)       -> positional
+#   - list(list(id = 123, value = "a"))  -> explicit (used as-is)
+.dataverse_normalize_answers <- function(answers, cq) {
+	if (is.null(answers)) return(NULL)
+	n   <- nrow(cq)
+	ids <- cq$id
+
+	if (is.character(answers)) {
+		if (length(answers) == 1L) answers <- rep(answers, n)
+		if (length(answers) < n) {
+			stop(sprintf("Got %d guestbook answer(s) but the dataset has %d question(s); supply at least %d.",
+				length(answers), n, n), call. = FALSE)
+		}
+		# Extras beyond the number of questions are silently ignored.
+		return(lapply(seq_len(n), function(i) list(id = ids[i], value = answers[i])))
+	}
+
+	if (!is.list(answers)) {
+		stop("DATAVERSE$answers must be a string, a character vector, or a list.", call. = FALSE)
+	}
+
+	# Explicit canonical form: every entry already has both id and value.
+	explicit <- length(answers) > 0L && all(vapply(answers,
+		function(a) is.list(a) && !is.null(a$id) && !is.null(a$value),
+		logical(1)))
+	if (explicit) return(answers)
+
+	# Positional: each entry is a string or list(value = ...).
+	vals <- vapply(answers, function(a) {
+		if (is.character(a) && length(a) == 1L) return(a)
+		if (is.list(a) && !is.null(a$value))    return(as.character(a$value)[1])
+		NA_character_
+	}, character(1))
+	if (any(is.na(vals))) {
+		stop("DATAVERSE$answers entries must each be a string, a list(value = ...), ",
+		     "or a list(id = ..., value = ...).", call. = FALSE)
+	}
+	if (length(vals) < n) {
+		stop(sprintf("Got %d guestbook answer(s) but the dataset has %d question(s); supply at least %d. ",
+		             length(vals), n, n),
+		     "Use a single string to apply one answer to every question, or list(list(id = ..., value = ...), ...) for explicit pairing.",
+		     call. = FALSE)
+	}
+	# Extras beyond the number of questions are silently ignored.
+	lapply(seq_len(n), function(i) list(id = ids[i], value = vals[i]))
 }
 
 
