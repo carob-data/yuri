@@ -163,13 +163,27 @@ list_files <- function(path, recursive) {
 		qlist <- paste0("\nRequired guestbook questions:\n  ",
 			paste0("- id = ", ids, ", \"", qs, "\"", types, collapse = "\n  "))
 	}
+	# Diagnostic: surface what DATAVERSE fields the user actually set, so
+	# typos / mis-named keys (e.g. `answers1` instead of `answers`) are
+	# obvious from the error message alone.
+	have <- ""
+	dv <- .yuri_environment$DATAVERSE
+	if (is.list(dv) && length(dv) > 0L) {
+		nms <- names(dv)
+		nms <- nms[nzchar(nms)]
+		if (length(nms) > 0L) {
+			have <- paste0("\nDATAVERSE currently has: ", paste(nms, collapse = ", "),
+				" (need an `answers` field).")
+		}
+	}
 	gb_advice <- .auth_advice(
 		"Register them via yuri::authenticate(list(DATAVERSE = list(answers = \"<answer>\"))) -- a single string answers all questions; a character vector or list pairs positionally; list(list(id = ID, value = \"...\"), ...) is the explicit form."
 	)
 	tok <- paste0(
 		"Dataverse guestbook requires responses to custom questions. ",
 		gb_advice,
-		qlist
+		qlist,
+		have
 	)
 	if (isTRUE(any_restricted_files) || isTRUE(has_pwd_question)) {
 		tok_advice <- .auth_advice(
