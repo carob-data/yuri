@@ -359,7 +359,6 @@ LSMS_metadata <- function(uri, group, path, major, minor, ...) {
 	m <- data.frame(
 		dataset_id = suri,
 		uri=uri,
-		group=group,
 		license="acknowledge source, no redistribution, report data use",
 		title= tit,
 		authors=NA,
@@ -368,9 +367,7 @@ LSMS_metadata <- function(uri, group, path, major, minor, ...) {
 		description=des,
 		data_citation=NA,
 		project = "LSMS-ISA",
-		data_type = "survey",
-		treatment_vars = "none",
-		response_vars = "none"
+		data_type = "survey"
 	)
 	
 	d <- data.frame(list(...))
