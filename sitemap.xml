@@ -1,0 +1,15 @@
+<urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
+<url><loc>/404.html</loc></url>
+<url><loc>/LICENSE-text.html</loc></url>
+<url><loc>/authors.html</loc></url>
+<url><loc>/index.html</loc></url>
+<url><loc>/reference/authenticate.html</loc></url>
+<url><loc>/reference/dataURI.html</loc></url>
+<url><loc>/reference/extract_meta.html</loc></url>
+<url><loc>/reference/index.html</loc></url>
+<url><loc>/reference/read_meta.html</loc></url>
+<url><loc>/reference/set_auth_advice.html</loc></url>
+<url><loc>/reference/simpleURI.html</loc></url>
+<url><loc>/reference/yuri-package.html</loc></url>
+</urlset>
+
