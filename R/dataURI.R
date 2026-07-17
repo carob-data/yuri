@@ -229,7 +229,7 @@ list_files <- function(path, recursive) {
 		name        = .dataverse_pick_guestbook_field("name",        c("YURI_DATAVERSE_USERNAME",  "DATAVERSE_GUESTBOOK_NAME"),         "unspecified",      arg = name_arg),
 		email       = .dataverse_pick_guestbook_field("email",       c("YURI_DATAVERSE_EMAIL",     "DATAVERSE_GUESTBOOK_EMAIL"),        "guest@localhost",  arg = email_arg),
 		institution = .dataverse_pick_guestbook_field("institution", c("YURI_DATAVERSE_INSTITUTE", "DATAVERSE_GUESTBOOK_INSTITUTION"),  "unspecified",      arg = institute_arg),
-		position    = .dataverse_pick_guestbook_field("position",    c("YURI_DATAVERSE_POSITION",  "DATAVERSE_GUESTBOOK_POSITION"),     "",                 arg = NULL)
+		position    = .dataverse_pick_guestbook_field("position",    c("YURI_DATAVERSE_POSITION",  "DATAVERSE_GUESTBOOK_POSITION"),     "unspecified",      arg = NULL)
 	)
 	# Dataverse server-side validates the email and rejects the whole request
 	# with an opaque "required but not present (Email)" message; check upfront.
@@ -241,13 +241,84 @@ list_files <- function(path, recursive) {
 	cq <- gb$customQuestions
 	if (is.data.frame(cq) && nrow(cq) > 0) {
 		if (is.null(dv$answers)) {
-			.dataverse_guestbook_stop_answers_or_token(cq, any_restricted_files)
+			# only insist on answers when at least one custom question is
+			# mandatory; optional questions can simply be left unanswered
+			any_required <- TRUE
+			if (!is.null(cq$required)) {
+				any_required <- isTRUE(any(as.logical(cq$required), na.rm = TRUE))
+			}
+			if (any_required) {
+				.dataverse_guestbook_stop_answers_or_token(cq, any_restricted_files)
+			}
+			out$answers <- list()
+		} else {
+			out$answers <- .dataverse_normalize_answers(dv$answers, cq)
 		}
-		out$answers <- .dataverse_normalize_answers(dv$answers, cq)
 	} else {
 		out$answers <- list()
 	}
 	out
+}
+
+
+# For "options" questions the server only accepts one of the predefined
+# option values. Match case-insensitively and use the canonical spelling;
+# drop non-matching answers to *optional* questions (answers are usually
+# configured once, positionally, and cannot fit every guestbook); stop with
+# the list of valid options when a *required* question gets an invalid answer.
+.dataverse_validate_answers <- function(answers, cq) {
+	if (is.null(cq$optionValues)) return(answers)
+	ids <- as.character(cq$id)
+	req <- rep(TRUE, nrow(cq))
+	if (!is.null(cq$required)) {
+		req <- as.logical(cq$required)
+		req[is.na(req)] <- TRUE
+	}
+	keep <- rep(TRUE, length(answers))
+	for (i in seq_along(answers)) {
+		j <- match(as.character(answers[[i]]$id), ids)
+		if (is.na(j)) next
+		ov <- cq$optionValues[[j]]
+		if (is.null(ov) || NROW(ov) == 0) next
+		vals <- as.character(ov$value)
+		v <- as.character(answers[[i]]$value)[1]
+		k <- match(tolower(trimws(v)), tolower(trimws(vals)))
+		if (!is.na(k)) {
+			answers[[i]]$value <- vals[k]
+		} else if (!req[j]) {
+			keep[i] <- FALSE
+		} else {
+			stop("Guestbook answer '", v, "' is not a valid option for question \"",
+				as.character(cq$question)[j], "\". Valid options: ",
+				paste(vals, collapse = ", "), call. = FALSE)
+		}
+	}
+	answers[keep]
+}
+
+
+# Dataverse expects the answer to a "textarea" question as a JSON *array* of
+# strings; a scalar string makes the server fail with a ClassCastException
+# (HTTP 500 "Internal server error"). See IQSS/dataverse issue #12446.
+# Wrap those values in I() so jsonlite::toJSON(auto_unbox=TRUE) keeps the array.
+.dataverse_wrap_answer_values <- function(answers, cq) {
+	types <- rep("", nrow(cq))
+	if (!is.null(cq$type)) types <- tolower(as.character(cq$type))
+	names(types) <- as.character(cq$id)
+	lapply(answers, function(a) {
+		v <- as.character(a$value)
+		if (isTRUE(types[as.character(a$id)] == "textarea")) {
+			a$value <- I(v)
+		} else {
+			a$value <- v[1]
+		}
+		a
+	})
+}
+
+
+.dataverse_finalize_answers <- function(answers, cq) {
+	.dataverse_wrap_answer_values(.dataverse_validate_answers(answers, cq), cq)
 }
 
 
@@ -271,7 +342,8 @@ list_files <- function(path, recursive) {
 				length(answers), n, n), call. = FALSE)
 		}
 		# Extras beyond the number of questions are silently ignored.
-		return(lapply(seq_len(n), function(i) list(id = ids[i], value = answers[i])))
+		out <- lapply(seq_len(n), function(i) list(id = ids[i], value = answers[i]))
+		return(.dataverse_finalize_answers(out, cq))
 	}
 
 	if (!is.list(answers)) {
@@ -282,7 +354,7 @@ list_files <- function(path, recursive) {
 	explicit <- length(answers) > 0L && all(vapply(answers,
 		function(a) is.list(a) && !is.null(a$id) && !is.null(a$value),
 		logical(1)))
-	if (explicit) return(answers)
+	if (explicit) return(.dataverse_finalize_answers(answers, cq))
 
 	# Positional: each entry is a string or list(value = ...).
 	vals <- vapply(answers, function(a) {
@@ -301,7 +373,8 @@ list_files <- function(path, recursive) {
 		     call. = FALSE)
 	}
 	# Extras beyond the number of questions are silently ignored.
-	lapply(seq_len(n), function(i) list(id = ids[i], value = vals[i]))
+	out <- lapply(seq_len(n), function(i) list(id = ids[i], value = vals[i]))
+	.dataverse_finalize_answers(out, cq)
 }
 
 
