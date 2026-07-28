@@ -192,7 +192,7 @@ meta_dryad <- function(x) {
 	if (NROW(pub) > 0) {
 		doipub <- pub[pub$identifierType == "DOI", ]
 		if (nrow(doipub) > 0) {
-			pub <- sapply(doipub$identifier, \(i) simpleURI(simpleURI(i), reverse=TRUE))
+			pub <- sapply(doipub$identifier, \(i) simpleURI(simpleURI(i, warn=FALSE), reverse=TRUE, warn=FALSE))
 			pub <- paste0(pub, collapse="; ")
 		} else {
 			pub <- paste0(pub$identifier, collapse="; ")		
@@ -265,7 +265,7 @@ get_citation <- function(m, uri) {
 extract_metadata <- function(uri, path) {
 
 	dataset_id <- simpleURI(uri)
-	uri <- simpleURI(dataset_id, reverse=TRUE)
+	uri <- simpleURI(dataset_id, reverse=TRUE, warn=FALSE)
 
 	js <- read_metadata(uri, path)
 	type <- get_type(js)

@@ -875,7 +875,7 @@ http_address <- function(uri) {
 dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, recursive=FALSE, filter=TRUE, username=NULL, password=NULL, institute=NULL, email=NULL) {
 
 	uname <- yuri::simpleURI(uri)	
-	uri <- yuri::simpleURI(uname, reverse=TRUE)
+	uri <- yuri::simpleURI(uname, reverse=TRUE, warn=FALSE)
 	
 	#uripath=TRUE
 	#if (uripath) 
