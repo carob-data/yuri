@@ -28,11 +28,18 @@
 			}
 		}
 	}
-	i <- grepl("\\.7z$", files, ignore.case=TRUE)
+
+	## .7z / .rar via libarchive (R package "archive")
+	i <- grepl("\\.7z$|\\.rar$", files, ignore.case=TRUE)
 	if (any(i)) {
 		f7 <- files[i]
 		for (f in f7) {
-			fext <- archive::archive_extract(f, path)
+			fext <- try(archive::archive_extract(f, path), silent = TRUE)
+			if (inherits(fext, "try-error")) {
+				warning("could not extract ", basename(f), ": ",
+					as.character(fext), call. = FALSE)
+				next
+			}
 			allf <- c(allf, file.path(path, fext))
 		}
 	}
@@ -68,13 +75,16 @@
 }
 
 
-## After Dataverse zip download: extract nested .7z, .gz, .tar, .tgz, .tar.gz until stable or max_iter.
+## After zip download: extract nested .7z, .rar, .gz, .tar, .tgz, .tar.gz until stable or max_iter.
 .dataverse_extract_archives <- function(path, unzip_more = TRUE, max_iter = 5L) {
+	seen <- character(0)
 	for (iter in seq_len(max_iter)) {
-		fz <- list.files(path, pattern = "\\.7z$|\\.gz$|\\.tar$|\\.tgz$|\\.tar\\.gz$", full.names = TRUE, ignore.case = TRUE)
+		fz <- list.files(path, pattern = "\\.7z$|\\.rar$|\\.gz$|\\.tar$|\\.tgz$|\\.tar\\.gz$", full.names = TRUE, ignore.case = TRUE)
+		fz <- setdiff(fz, seen)
 		if (length(fz) == 0) {
 			break
 		}
+		seen <- c(seen, fz)
 		n0 <- length(list.files(path, recursive = TRUE, include.dirs = FALSE))
 		.dataverse_unzip(fz, path, unzip_more = unzip_more)
 		n1 <- length(list.files(path, recursive = TRUE, include.dirs = FALSE))
@@ -84,4 +94,3 @@
 	}
 	invisible(TRUE)
 }
-

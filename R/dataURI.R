@@ -60,7 +60,7 @@ authenticate <- function(x) {
 
 
 filter_files <- function(x) { 
-	x <- grep("\\.json$|\\.pdf$|\\.doc$|\\.docx$|\\.zip$|\\.gz$|\\.7z$|\\.tar$|\\.tgz$|\\.tar\\.gz$", x, value=TRUE, invert=TRUE)
+	x <- grep("\\.json$|\\.pdf$|\\.doc$|\\.docx$|\\.zip$|\\.gz$|\\.7z$|\\.rar$|\\.tar$|\\.tgz$|\\.tar\\.gz$", x, value=TRUE, invert=TRUE)
 	# remove opened excel files
 	grep("/~$", x, fixed=TRUE, invert=TRUE, value=TRUE)
 }
@@ -626,6 +626,7 @@ list_files <- function(path, recursive) {
 				ff <- files[i]
 				for (f in ff) utils::unzip(f, junkpaths=TRUE, exdir=path)
 			}
+			.dataverse_extract_archives(path)
 		}
 		writeOK(path, uu)
 	}
@@ -700,7 +701,9 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 		outf <- file.path(path, paste0(uname, ".zip"))
 		writeBin(httr::content(res, "raw"), outf)	
 		if (unzip) {
-			utils::unzip(outf, exdir = file.path(path))	
+			utils::unzip(outf, exdir = file.path(path))
+			## nested .rar / .7z / .tar / .gz inside the Dryad zip
+			.dataverse_extract_archives(path)
 		}
 		writeOK(path, uu)
 	}
@@ -753,6 +756,7 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 				ff <- files[i]
 				for (f in ff) utils::unzip(f, junkpaths=TRUE, exdir=path)
 			}
+			.dataverse_extract_archives(path)
 		}
 		writeOK(path, uu)
 	}
@@ -828,6 +832,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 				ff <- files[i]
 				for (f in ff) utils::unzip(f, junkpaths=FALSE, exdir=path)
 			}
+			.dataverse_extract_archives(path)
 		}
 		writeOK(path, uu)
 	}
@@ -852,6 +857,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 		done <- TRUE
 		if (unzip) {
 			utils::unzip(zipf, junkpaths=TRUE, exdir=path)
+			.dataverse_extract_archives(path)
 		}
 		writeOK(path, uu)
 	}	
