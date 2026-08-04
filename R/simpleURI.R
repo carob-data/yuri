@@ -32,7 +32,6 @@ one_simple_uri <- function(uri, reverse, warn=TRUE) {
 		w <- TRUE
 	} else if (grepl("^hdl:", ur)) {
 		u <- gsub("^hdl:", "hdl_", ur)		
-		w <- TRUE
 	} else if (grepl("hdl.handle.net/", ur)) {
 		u <- gsub("hdl.handle.net/", "", ur)
 		u <- paste0("hdl_", u)
