@@ -37,7 +37,10 @@ one_simple_uri <- function(uri, reverse, warn=TRUE) {
 		u <- paste0("hdl_", u)
 		w <- TRUE
 	} else {
-		return(NULL) #stop(paste0("Not a valid object identifier (DOI or HDL)"))
+		if (warn) {
+			warning(paste(uri, "is not a valid DOI or HDL"), call.=FALSE)
+		}
+		return(NA) 
 	}
 	if (warn && w) {
 		warning(paste(uri, "is not a valid URI. It should be:", gsub("_", ":", u)), call.=FALSE)
