@@ -162,36 +162,67 @@ get_protocol <- function(x) {
 
 get_authors <- function(x) {
 
+	anames <- NULL
+	emails <- NULL
 	i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "author")
-	out <- NULL
 	if (length(i) > 0) {
-		out <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorName$value
+		av <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]
+		anames <- av$authorName$value
+		if (!is.null(av$authorEmail)) emails <- av$authorEmail$value
 	}
-	if (is.null(out)) {
+	if (is.null(anames)) {
 		r <- x$result
 		if (!is.null(r)) {
-			out <- r$creator
-			i <- grep("contributor_person$|contributor_person_*.[0-9]$", names(r))	
-			r <- unlist(r[i])
-			add <- r[order(names(r))]
-			out <- c(out, add)
+			anames <- r$creator
+			emails <- r$creator_email
+			pkeys <- grep("^contributor_person$|^contributor_person_[0-9]+$", names(r), value=TRUE)
+			if (length(pkeys) > 0) {
+				pkeys <- pkeys[gtools::mixedorder(pkeys)]
+				persons <- unlist(r[pkeys], use.names=FALSE)
+				ekeys <- ifelse(pkeys == "contributor_person",
+					"contributor_person_1_email", paste0(pkeys, "_email"))
+				pemails <- vapply(ekeys, \(k) {
+					v <- r[[k]]
+					if (is.null(v) || length(v) == 0) NA_character_ else as.character(v)[1]
+				}, character(1), USE.NAMES=FALSE)
+				anames <- c(anames, persons)
+				emails <- c(emails, pemails)
+			}
 		}
 	}
 	#zenodo, Rothamsted
-	if (is.null(out)) {
-		out <- c(x$metadata$creators$name, x$contributors$title)
-	}
-	#dryad 
-	if (is.null(out)) {
-		out <- x$authors
-		if (!is.null(out)) {
-			out <- paste0(out$lastName, ", ", out$firstName)
+	if (is.null(anames)) {
+		creators <- x$metadata$creators
+		if (!is.null(creators)) {
+			anames <- creators$name
+			if (!is.null(creators$email)) emails <- creators$email
+		}
+		if (!is.null(x$contributors)) {
+			ct <- x$contributors
+			cn <- if (!is.null(ct$title)) ct$title else ct$name
+			ce <- if (!is.null(ct$email)) ct$email else NULL
+			anames <- c(anames, cn)
+			emails <- c(emails, ce)
 		}
 	}
-	if (is.null(out)) {
-		return(as.character(NA))
+	#dryad / figshare
+	if (is.null(anames)) {
+		aut <- x$authors
+		if (!is.null(aut)) {
+			if (!is.null(aut$lastName)) {
+				anames <- paste0(aut$lastName, ", ", aut$firstName)
+			} else if (!is.null(aut$full_name)) {
+				anames <- aut$full_name
+			} else {
+				anames <- aut
+			}
+			if (!is.null(aut$email)) emails <- aut$email
+		}
 	}
-	paste(out, collapse="; ")
+	if (is.null(anames)) {
+		return(list(names = as.character(NA), emails = as.character(NA)))
+	}
+	align_authors(anames, emails)
 }
 
 get_publisher <- function(x) {
@@ -217,6 +248,8 @@ meta_mix <- function(js, uri) {
 	}
 
 	authors <- get_authors(js)
+	authors_str <- setp(authors$names)
+	emails_str <- setp_emails(authors$emails)
 	titl <- gsub("\\.\\.$", ".", paste0(get_title(js), "."))
 
 	pubdate <- c(js$data$publicationDate, js$result$creation_date, js$publicationDate, js$metadata$publication_date)
@@ -235,7 +268,7 @@ meta_mix <- function(js, uri) {
 	i <- is.na(pb)
 	pb[i] <- ""
 	if (any(!i)) pb[!i] <- paste(pb[!i], ". ")
-	cit <- paste0(authors, " (", year, "). ", titl, " ", pb, vv, uri)
+	cit <- paste0(authors_str, " (", year, "). ", titl, " ", pb, vv, uri)
 	cit <- gsub("\\. \\.", ". ", cit)
 
 	data.frame(
@@ -243,7 +276,8 @@ meta_mix <- function(js, uri) {
 		dataset_id = yuri::simpleURI(uri),
 		license = lic,
 		title = titl,
-		authors = authors,
+		authors = authors_str,
+		authors_email = emails_str,
 		data_published = pubdate,
 		data_publisher = pub,
 		version = v,

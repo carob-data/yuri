@@ -34,6 +34,42 @@ fix_authors <- function(x) {
 }
 
 
+# Pair author names with emails (same length/order). Empty/missing emails
+# become NA; duplicate names keep the first occurrence.
+align_authors <- function(names, emails = NULL) {
+	names <- as.character(names)
+	n <- length(names)
+	if (is.null(emails)) {
+		emails <- rep(NA_character_, n)
+	} else {
+		emails <- as.character(emails)
+		if (length(emails) < n) {
+			emails <- c(emails, rep(NA_character_, n - length(emails)))
+		}
+		emails <- emails[seq_len(n)]
+	}
+	names <- trimws(gsub("^Dr\\.|^Prof\\.", "", names))
+	emails <- trimws(emails)
+	emails[!nzchar(emails) | tolower(emails) %in% c("na", "null", "none")] <- NA_character_
+	keep <- !is.na(names) & nzchar(names)
+	names <- names[keep]
+	emails <- emails[keep]
+	i <- !duplicated(names)
+	list(names = names[i], emails = emails[i])
+}
+
+
+# Like setp, but keep a slot per author so emails stay aligned with names.
+# Missing emails are recorded as "NA" (not dropped).
+setp_emails <- function(x) {
+	if (is.null(x) || length(x) == 0) return(as.character(NA))
+	x <- as.character(x)
+	x[is.na(x) | !nzchar(x)] <- "NA"
+	if (all(x == "NA")) return(as.character(NA))
+	paste(x, collapse = "; ")
+}
+
+
 cleaner <- function(x) {
 	b <- "Ab1Ba2Ab3"
 	x <- gsub("\u201C|\u201D|\u2018|\u2019", "'", x)
@@ -76,11 +112,15 @@ meta_dataverse <- function(x) {
 
 	i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "author")
 	if (length(i) > 0) {
-		aut <- unique(x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorName$value)
-		aff <- na.omit(unique(x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]$authorAffiliation$value))
+		av <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]]
+		eml <- if (!is.null(av$authorEmail)) av$authorEmail$value else NULL
+		aa <- align_authors(av$authorName$value, eml)
+		aut <- aa$names
+		aem <- aa$emails
+		aff <- na.omit(unique(av$authorAffiliation$value))
 		# "producer"
 	} else {
-		aff <- aut <- as.character(NA)
+		aff <- aut <- aem <- as.character(NA)
 	}
 	
 	if (is.null(aff) || isTRUE(is.na(aff))) {
@@ -116,6 +156,7 @@ meta_dataverse <- function(x) {
 		license = lic,
 		title = titl,
 		authors = setp(aut),
+		authors_email = setp_emails(aem),
 		publication = setp(doi),
 		date_published = setv(x$data$publicationDate),
 		data_organization = setp(aff),
@@ -129,16 +170,31 @@ meta_dataverse <- function(x) {
 
 meta_CKAN <- function(x) {
 
-	aut <- x$result$creator
-	i <- grep("contributor_person$|contributor_person_*.[0-9]$", names(x$result))	
-	r <- unlist(x$result[i])
-	aut <- c(aut, r[gtools::mixedorder(names(r))])
-	aut <- fix_authors(aut)
+	r <- x$result
+	aut <- r$creator
+	aem <- r$creator_email
 
-	i <- grep("contributor_projectlead_institute", names(x$result))	
-	aff1 <- unique(unlist(x$result[i]))
-	i <- grep("contributor.*affiliation", names(x$result))	
-	aff <- unique(c(aff1, unlist(x$result[i])))
+	pkeys <- grep("^contributor_person$|^contributor_person_[0-9]+$", names(r), value=TRUE)
+	if (length(pkeys) > 0) {
+		pkeys <- pkeys[gtools::mixedorder(pkeys)]
+		persons <- unlist(r[pkeys], use.names=FALSE)
+		ekeys <- ifelse(pkeys == "contributor_person",
+			"contributor_person_1_email", paste0(pkeys, "_email"))
+		pemails <- vapply(ekeys, \(k) {
+			v <- r[[k]]
+			if (is.null(v) || length(v) == 0) NA_character_ else as.character(v)[1]
+		}, character(1), USE.NAMES=FALSE)
+		aut <- c(aut, persons)
+		aem <- c(aem, pemails)
+	}
+	aa <- align_authors(aut, aem)
+	aut <- aa$names
+	aem <- aa$emails
+
+	i <- grep("contributor_projectlead_institute", names(r))
+	aff1 <- unique(unlist(r[i]))
+	i <- grep("contributor.*affiliation", names(r))
+	aff <- unique(c(aff1, unlist(r[i])))
 	aff <- trimws(aff[!grepl("Not Applicable", aff, ignore.case=TRUE)])
 	aff <- aff[aff != ""]
 	if (length(aff) == 0) aff <- NULL
@@ -152,14 +208,15 @@ meta_CKAN <- function(x) {
 
 	data.frame(
 		license = get_license(x),
-		title = setv(x$result$title),
+		title = setv(r$title),
 		authors = setp(aut),
+		authors_email = setp_emails(aem),
 		publication = as.character(NA),
-		date_published = setv(x$result$creation_date),
+		date_published = setv(r$creation_date),
 		data_organization = setp(aff),
-		publisher = setv(x$result$publisher),
+		publisher = setv(r$publisher),
 		version = setv(v),
-		description = setv(x$result$notes),
+		description = setv(r$notes),
 		design = as.character(NA)
 	)
 }
@@ -167,13 +224,17 @@ meta_CKAN <- function(x) {
 
 
 meta_zenodo <- function(x) {
+	creators <- x$metadata$creators
+	eml <- if (!is.null(creators$email)) creators$email else NULL
+	aa <- align_authors(creators$name, eml)
 	data.frame(
 		license = get_license(x),
 		title = setv(x$metadata$title),
-		authors = setp(x$metadata$creators$name),
+		authors = setp(aa$names),
+		authors_email = setp_emails(aa$emails),
 		publication = as.character(NA),
 		date_published = setv(x$metadata$publication_date),
-		data_organization = setp(unique(x$metadata$creators$affiliation)),
+		data_organization = setp(unique(creators$affiliation)),
 		publisher = "zenodo.org",
 		version = setv(x$revision),
 		description = cleaner(setv(x$metadata$description)),
@@ -185,9 +246,12 @@ meta_zenodo <- function(x) {
 
 meta_dryad <- function(x) {
 	aut <- x$authors
+	eml <- NULL
 	if (!is.null(aut)) {
+		eml <- aut$email
 		aut <- paste0(aut$lastName, ", ", aut$firstName)
 	}
+	aa <- align_authors(aut, eml)
 	pub <- x$relatedWorks
 	if (NROW(pub) > 0) {
 		doipub <- pub[pub$identifierType == "DOI", ]
@@ -203,7 +267,8 @@ meta_dryad <- function(x) {
 	data.frame(
 		license = get_license(x),
 		title = cleaner(setv(x$title)),
-		authors = setp(aut),
+		authors = setp(aa$names),
+		authors_email = setp_emails(aa$emails),
 		publication = pub,
 		date_published = setv(x$publicationDate),
 		data_organization = setp(unique(x$authors$affiliation)),
@@ -225,10 +290,15 @@ meta_figshare <- function(x, path) {
 		licenses <- as.character(NA)
 	}
 
+	aut <- x$authors$full_name
+	eml <- if (!is.null(x$authors$email)) x$authors$email else NULL
+	aa <- align_authors(aut, eml)
+
 	data.frame(
 		license = licenses,
 		title = setv(x$title),
-		authors = setp(x$authors$full_name),
+		authors = setp(aa$names),
+		authors_email = setp_emails(aa$emails),
 		publication = setp(x$references),
 		date_published = setv(x$modified_date),  # created_date
 		data_organization = setp(unique(x$institution_id)),

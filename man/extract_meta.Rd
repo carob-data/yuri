@@ -20,6 +20,9 @@ extract_metadata(uri, path)
 } 
 
 \value{
-data.frame
+data.frame with dataset-level metadata including \code{authors} and
+\code{authors_email}. Emails are semicolon-separated in the same order as
+author names; missing emails are recorded as \code{NA} in that slot
+(or the whole field is \code{NA} if none are available).
 }
 

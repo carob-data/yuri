@@ -362,6 +362,7 @@ LSMS_metadata <- function(uri, group, path, major, minor, ...) {
 		license="acknowledge source, no redistribution, report data use",
 		title= tit,
 		authors=NA,
+		authors_email=NA,
 		publication=NA,
 		date_published=dat,
 		description=des,
