@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">yuri</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3-8</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3-9</span>
       </span>
     </div>
 
@@ -44,7 +44,7 @@
     </div>
 
     <div id="ref-usage">
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">dataURI</span><span class="op">(</span><span class="va">uri</span>, <span class="va">path</span>, cache<span class="op">=</span><span class="cn">TRUE</span>, unzip<span class="op">=</span><span class="cn">TRUE</span>, recursive<span class="op">=</span><span class="cn">FALSE</span>, filter<span class="op">=</span><span class="cn">TRUE</span>, username<span class="op">=</span><span class="cn">NULL</span>, password<span class="op">=</span><span class="cn">NULL</span>, institute<span class="op">=</span><span class="cn">NULL</span>, email<span class="op">=</span><span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">dataURI</span><span class="op">(</span><span class="va">uri</span>, <span class="va">path</span>, cache<span class="op">=</span><span class="cn">TRUE</span>, unzip<span class="op">=</span><span class="cn">TRUE</span>, filter<span class="op">=</span><span class="cn">TRUE</span>, authentication<span class="op">=</span><span class="cn">NULL</span>, keep_folders<span class="op">=</span><span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
@@ -62,30 +62,22 @@
   <dt id="arg-unzip">unzip<a class="anchor" aria-label="anchor" href="#arg-unzip"></a></dt>
 <dd><p>logical. if <code>TRUE</code> downloaded zip files are unzipped</p></dd>
 
-  <dt id="arg-recursive">recursive<a class="anchor" aria-label="anchor" href="#arg-recursive"></a></dt>
-<dd><p>logical. if <code>TRUE</code> also return filenames in sub-directories</p></dd>
-
   <dt id="arg-filter">filter<a class="anchor" aria-label="anchor" href="#arg-filter"></a></dt>
 <dd><p>logical. if <code>TRUE</code> files that probably do not have the primary data are filtered out (files ending on .pdf, .doc(x), .json)</p></dd>
 
-  <dt id="arg-username">username<a class="anchor" aria-label="anchor" href="#arg-username"></a></dt>
-<dd><p>optional. For Dataverse guestbooks, used as the <code>name</code> field when given; for Dryad, the OAuth client id. If <code>NULL</code> or empty, the value is taken from credentials registered via <code><a href="authenticate.html">authenticate</a></code> (<code>DATAVERSE$name</code>), then environment variables <code>YURI_DATAVERSE_USERNAME</code> / <code>DATAVERSE_GUESTBOOK_NAME</code>, then a built-in default.</p></dd>
+  <dt id="arg-authentication">authentication<a class="anchor" aria-label="anchor" href="#arg-authentication"></a></dt>
+<dd><p>optional named list of credentials for the data provider. May be a flat list of fields for the URI's provider (e.g. <code>list(token = "...", email = "...")</code>), or a service-keyed list like <code><a href="authenticate.html">authenticate</a></code> (e.g. <code>list(DATAVERSE = list(token = "..."), DRYAD = list(username = "...", password = "..."))</code>). Recognized fields depend on the provider (see Details). If <code>NULL</code>, credentials registered via <code><a href="authenticate.html">authenticate</a></code> and environment variables are used.</p></dd>
 
-  <dt id="arg-password">password<a class="anchor" aria-label="anchor" href="#arg-password"></a></dt>
-<dd><p>optional. For Dataverse, treated as an API token if set (<code>X-Dataverse-key</code>); if not given, the token registered via <code><a href="authenticate.html">authenticate</a></code> (<code>DATAVERSE$token</code>) or the environment variables <code>YURI_DATAVERSE_PASSWORD</code>, <code>DATAVERSE_API_TOKEN</code>, or <code>DATAVERSE_KEY</code> are used. For Dryad, the OAuth client secret.</p></dd>
-
-  <dt id="arg-institute">institute<a class="anchor" aria-label="anchor" href="#arg-institute"></a></dt>
-<dd><p>optional. For Dataverse guestbooks, the <code>institution</code> field. If <code>NULL</code> or empty, the value is taken from credentials registered via <code><a href="authenticate.html">authenticate</a></code> (<code>DATAVERSE$institution</code>), then <code>YURI_DATAVERSE_INSTITUTE</code> / <code>DATAVERSE_GUESTBOOK_INSTITUTION</code>, then a built-in default.</p></dd>
-
-  <dt id="arg-email">email<a class="anchor" aria-label="anchor" href="#arg-email"></a></dt>
-<dd><p>optional. For Dataverse guestbooks, the <code>email</code> field. If <code>NULL</code> or empty, the value is taken from credentials registered via <code><a href="authenticate.html">authenticate</a></code> (<code>DATAVERSE$email</code>), then <code>YURI_DATAVERSE_EMAIL</code> / <code>DATAVERSE_GUESTBOOK_EMAIL</code>, then a built-in default.</p></dd>
+  <dt id="arg-keep-folders">keep_folders<a class="anchor" aria-label="anchor" href="#arg-keep-folders"></a></dt>
+<dd><p>logical. if <code>TRUE</code> (default) and <code>unzip=TRUE</code>, preserve the directory structure inside zip archives. If <code>FALSE</code>, files are extracted into a flat folder (equivalent to <code>utils::unzip(..., junkpaths=TRUE)</code>). The returned file list always includes files in sub-directories.</p></dd>
 
 </dl></div>
     <div id="details">
     <h2>Details</h2>
     <p>Some Harvard Dataverse (and other Dataverse) datasets require a guestbook before bulk file download. In that case, <code>dataURI</code> POSTs to the Dataverse Access API with <code>signed=true</code> and a guestbook payload, then downloads via the returned signed URL (see the Data Access API guide).</p>
-<p>Guestbook field resolution order is: function arguments (<code>username</code> for name, <code>email</code>, <code>institute</code>, <code>password</code> for API token), then credentials registered via <code><a href="authenticate.html">authenticate</a></code> (<code>DATAVERSE$&lt;field&gt;</code>), then environment variables (<code>YURI_DATAVERSE_*</code> and the historical <code>DATAVERSE_GUESTBOOK_*</code>), then built-in defaults.</p>
-<p>Register the fields the server requires with <code>authenticate(list(DATAVERSE = list(name, email, institution, position, token, answers)))</code> (use <code>GET /api/guestbooks/{id}</code> to inspect what the server asks for).</p>
+<p>Credential resolution order is: fields in <code>authentication</code>, then credentials registered via <code><a href="authenticate.html">authenticate</a></code>, then environment variables (<code>YURI_DATAVERSE_*</code> and the historical <code>DATAVERSE_GUESTBOOK_*</code>), then built-in defaults.</p>
+<p>For Dataverse, recognized authentication fields include <code>name</code> (or <code>username</code>), <code>email</code>, <code>institution</code> (or <code>institute</code>), <code>token</code> (or <code>api_token</code> / <code>password</code>), <code>position</code>, and <code>answers</code>. Register persistent credentials with <code>authenticate(list(DATAVERSE = list(name, email, institution, position, token, answers)))</code> (use <code>GET /api/guestbooks/{id}</code> to inspect what the server asks for).</p>
+<p>For Dryad, recognized fields are <code>username</code> (or <code>client_id</code>) and <code>password</code> (or <code>client_secret</code> / <code>secret</code>) — the OAuth client id and secret.</p>
 <p>Custom guestbook questions must be supplied in <code>answers</code> as a list of lists with <code>id</code> and <code>value</code> elements (see Dataverse API examples).</p>
     </div>
     <div id="value">
