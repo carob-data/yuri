@@ -10,7 +10,7 @@ Customize the authentication advice in yuri error messages
 Authentication-related errors raised by \code{\link{dataURI}} (and its
 back-end download helpers) include actionable advice that, by default,
 points stand-alone callers to \code{\link{authenticate}} or to the
-\code{password} argument of \code{dataURI}. Wrapper packages that manage
+\code{authentication} argument of \code{dataURI}. Wrapper packages that manage
 credentials differently can replace that advice with a single string via
 \code{set_auth_advice}, so users see directions appropriate for their
 workflow instead.

@@ -1,5 +1,5 @@
 
-.dataverse_unzip <- function(files, path, unzip_more=TRUE) {
+.dataverse_unzip <- function(files, path, unzip_more=TRUE, junkpaths=TRUE) {
 	allf <- NULL
 	files <- files[file.exists(files)]
 	i <- grepl("zip$", files, ignore.case=TRUE)
@@ -12,15 +12,17 @@
 			allf <- c(allf, zf)
 			if (unzip_more) {
 				ff <- list.files(path, recursive=TRUE, include.dirs=TRUE)
-				there <- (zf %in% ff)
+				on_disk <- if (isTRUE(junkpaths)) basename(zf) else zf
+				there <- on_disk %in% ff
 				if (!all(there)) {
-					utils::unzip(z, zf[!there], exdir = path)
+					todo <- zf[!there]
+					utils::unzip(z, todo, exdir = path, junkpaths = junkpaths)
 					## zipfiles in zipfile...
-					zipzip <- grep("\\.zip$", zf[!there], ignore.case=TRUE, value=TRUE)
+					zipzip <- grep("\\.zip$", todo, ignore.case=TRUE, value=TRUE)
 					if (length(zipzip) > 0) {
-						zipzip <- file.path(path, zipzip)
+						zipzip <- file.path(path, if (isTRUE(junkpaths)) basename(zipzip) else zipzip)
 						for (zz in zipzip) {
-							utils::unzip(zz, exdir = path)
+							utils::unzip(zz, exdir = path, junkpaths = junkpaths)
 						}
 						allf <- c(allf, utils::unzip(zz, list=TRUE))
 					}
@@ -76,7 +78,7 @@
 
 
 ## After zip download: extract nested .7z, .rar, .gz, .tar, .tgz, .tar.gz until stable or max_iter.
-.dataverse_extract_archives <- function(path, unzip_more = TRUE, max_iter = 5L) {
+.dataverse_extract_archives <- function(path, unzip_more = TRUE, max_iter = 5L, junkpaths = TRUE) {
 	seen <- character(0)
 	for (iter in seq_len(max_iter)) {
 		fz <- list.files(path, pattern = "\\.7z$|\\.rar$|\\.gz$|\\.tar$|\\.tgz$|\\.tar\\.gz$", full.names = TRUE, ignore.case = TRUE)
@@ -86,7 +88,7 @@
 		}
 		seen <- c(seen, fz)
 		n0 <- length(list.files(path, recursive = TRUE, include.dirs = FALSE))
-		.dataverse_unzip(fz, path, unzip_more = unzip_more)
+		.dataverse_unzip(fz, path, unzip_more = unzip_more, junkpaths = junkpaths)
 		n1 <- length(list.files(path, recursive = TRUE, include.dirs = FALSE))
 		if (n1 <= n0) {
 			break
