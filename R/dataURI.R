@@ -166,10 +166,94 @@ list_files <- function(path, recursive) {
 	} else {
 		r <- httr::GET(url, cfg, wd)
 	}
-	if (r$status_code < 200 || r$status_code >= 300) {
-		stop("Dataverse request failed (HTTP ", r$status_code, "): ", url)
+	# Harvard Dataverse often returns HTTP 202 with an empty body when the API is unavailable
+	if (r$status_code == 202L || r$status_code < 200L || r$status_code >= 300L) {
+		stop("Dataverse request failed (HTTP ", r$status_code, "): ", url, call. = FALSE)
+	}
+	if (!file.exists(dest) || isTRUE(file.info(dest)$size < 1)) {
+		stop("Dataverse request returned an empty response: ", url, call. = FALSE)
 	}
 	invisible(TRUE)
+}
+
+
+# Clear stop when a Dataverse metadata API call fails / returns no usable body.
+.dataverse_api_unavailable_stop <- function(domain, detail = NULL) {
+	is_hd <- grepl("dataverse\\.harvard\\.edu", domain, ignore.case = TRUE) ||
+		grepl("harvard\\.edu", domain, ignore.case = TRUE)
+	msg <- if (is_hd) {
+		"Connection to the Harvard Dataverse API failed (the API may be offline or temporarily unavailable)."
+	} else {
+		paste0(
+			"Connection to the Dataverse API failed (", domain,
+			"). The API may be offline or temporarily unavailable."
+		)
+	}
+	if (!is.null(detail) && nzchar(as.character(detail)[1])) {
+		msg <- paste0(msg, "\n", as.character(detail)[1])
+	}
+	stop(msg, call. = FALSE)
+}
+
+
+# Download Dataverse dataset JSON metadata; stop with a clear message on failure.
+.dataverse_fetch_dataset_json <- function(uu, tmpf, insecure_uu, api_token, domain) {
+	ok <- TRUE
+	err_detail <- NULL
+	if (!is.null(api_token) && nzchar(api_token)) {
+		got <- try(.dataverse_http_get_to_file(uu, tmpf, insecure_uu, api_token), silent = TRUE)
+		if (inherits(got, "try-error")) {
+			ok <- FALSE
+			err_detail <- conditionMessage(attr(got, "condition"))
+		}
+	} else if (insecure_uu) {
+		# temporary fix because WorldAgroFor https cert has expired
+		dl <- try(
+			utils::download.file(uu, tmpf, quiet = TRUE, method = "curl", extra = "-k", mode = "wb"),
+			silent = TRUE
+		)
+		if (inherits(dl, "try-error") || !isTRUE(dl == 0L)) {
+			ok <- FALSE
+			err_detail <- if (inherits(dl, "try-error")) conditionMessage(attr(dl, "condition")) else paste("download.file status", dl)
+		}
+	} else {
+		# Prefer httr so HTTP 202 / empty maintenance responses are visible
+		cfg <- NULL
+		wd <- httr::write_disk(tmpf, overwrite = TRUE)
+		r <- try(httr::GET(uu, cfg, wd), silent = TRUE)
+		if (inherits(r, "try-error")) {
+			ok <- FALSE
+			err_detail <- conditionMessage(attr(r, "condition"))
+		} else if (r$status_code == 202L || r$status_code < 200L || r$status_code >= 300L) {
+			ok <- FALSE
+			err_detail <- paste0("HTTP ", r$status_code)
+		}
+	}
+
+	if (!ok || !file.exists(tmpf) || isTRUE(file.info(tmpf)$size < 1)) {
+		.dataverse_api_unavailable_stop(domain, err_detail)
+	}
+
+	js <- try(readLines(tmpf, encoding = "UTF-8", warn = FALSE), silent = TRUE)
+	if (inherits(js, "try-error") || length(js) < 1L) {
+		.dataverse_api_unavailable_stop(domain, "empty or unreadable API response")
+	}
+	# Harvard (and some others) serve an HTML/XML maintenance page when the API is down
+	if (grepl("^\\s*<(\\?xml|!DOCTYPE|html)", js[1], ignore.case = TRUE)) {
+		.dataverse_api_unavailable_stop(domain, "API returned an HTML/XML page instead of JSON")
+	}
+	parsed <- try(jsonlite::fromJSON(js), silent = TRUE)
+	if (inherits(parsed, "try-error")) {
+		.dataverse_api_unavailable_stop(domain, "API response was not valid JSON")
+	}
+	if (is.list(parsed) && identical(parsed$status, "ERROR")) {
+		stop(
+			"Dataverse API error: ",
+			if (!is.null(parsed$message)) parsed$message else "unknown error",
+			call. = FALSE
+		)
+	}
+	parsed
 }
 
 
@@ -489,35 +573,29 @@ list_files <- function(path, recursive) {
 	uu <- paste0(baseu, "/api/datasets/:persistentId?", pid)
 	api_token <- .dataverse_resolve_api_token(password_arg)
 
-	# the nice way
-	#r <- httr::GET(uu)
-	#httr::stop_for_status(r)
-	#js <- httr::content(r, as = "text", encoding = "UTF-8")
-	# but for cimmyt...
 	tmpf <- tempfile()
+	on.exit(unlink(tmpf), add = TRUE)
 
 	insecure_uu <- grepl("worldagroforestry", uu) || grepl("cirad.fr", uu) || grepl("cipotato", uu)
-	if (!is.null(api_token) && nzchar(api_token)) {
-		.dataverse_http_get_to_file(uu, tmpf, insecure_uu, api_token)
-	} else if (insecure_uu) {
-		# temporary fix because WorldAgroFor https cert has expired
-		utils::download.file(uu, tmpf, quiet=TRUE, method="curl", extra="-k", mode="wb")
-	} else {
-		utils::download.file(uu, tmpf, quiet=TRUE, mode="wb")
-	}
-	js <- readLines(tmpf, encoding = "UTF-8", warn=FALSE)
-	if (js[1] == "<?xml version='1.0' encoding='UTF-8' ?>") {
-		stop("The Harvard Dataverse API is not available")
-	}
+	js <- .dataverse_fetch_dataset_json(uu, tmpf, insecure_uu, api_token, domain)
 
-	js <- jsonlite::fromJSON(js)
 	fjs <- js$data$latestVersion$files
 	jsp <- jsonlite::toJSON(js, pretty=TRUE)
 	writeLines(jsp, file.path(path, paste0(uname, ".json")))
-	f <- if(is.null(fjs$dataFile)) {fjs$datafile} else {fjs$dataFile}
+	if (is.null(fjs)) {
+		stop(
+			"Dataverse dataset metadata had no file list for ", pid,
+			". Check that the URI is a dataset DOI (not a file-level ID).",
+			call. = FALSE
+		)
+	}
+	f <- if (is.null(fjs$dataFile)) fjs$datafile else fjs$dataFile
+	if (is.null(f) || NROW(f) == 0L) {
+		stop("no files!", call. = FALSE)
+	}
 	## `restricted` lives on each file row next to `dataFile`, not inside the nested dataFile table
-	if (!is.null(f) && NROW(f) > 0L && !is.null(fjs$restricted)) {
-		nr <- nrow(f)
+	if (!is.null(fjs$restricted)) {
+		nr <- NROW(f)
 		rlen <- length(fjs$restricted)
 		if (nr == rlen) {
 			f$restricted <- fjs$restricted
@@ -555,7 +633,7 @@ list_files <- function(path, recursive) {
 		}
 	}
 	if (nrow(f) == 0) {
-		stop("no files!")
+		stop("no files!", call. = FALSE)
 	}
 	gb_id <- .dataverse_dataset_guestbook_id(js)
 	guestbook_body <- NULL
