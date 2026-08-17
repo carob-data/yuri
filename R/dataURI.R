@@ -182,15 +182,12 @@ list_files <- function(path, recursive) {
 	is_hd <- grepl("dataverse\\.harvard\\.edu", domain, ignore.case = TRUE) ||
 		grepl("harvard\\.edu", domain, ignore.case = TRUE)
 	msg <- if (is_hd) {
-		"Connection to the Harvard Dataverse API failed (the API may be offline or temporarily unavailable)."
+		"Connection to the Harvard Dataverse API failed."
 	} else {
-		paste0(
-			"Connection to the Dataverse API failed (", domain,
-			"). The API may be offline or temporarily unavailable."
-		)
+		paste0("Connection to the Dataverse API failed (", domain,	").")
 	}
 	if (!is.null(detail) && nzchar(as.character(detail)[1])) {
-		msg <- paste0(msg, "\n", as.character(detail)[1])
+		msg <- paste0(msg, " (", as.character(detail)[1], ")")
 	}
 	stop(msg, call. = FALSE)
 }
