@@ -879,76 +879,133 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 
 download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-length"]])
 
-.download_figshare_files <- function(u, path, uname, unzip, keep_folders=TRUE){
-
-	pid <- basename(u)
-	uu <- paste0("https://api.figshare.com/v2/collections/", pid)
-  
-	y <- httr::GET(uu)
-	if (y$status_code != 200) {
-		return(NULL)
+# Figshare ID from a resolved URL (article or collection); last path segment is the numeric id.
+.figshare_id <- function(u) {
+	m <- regmatches(u, regexpr("[0-9]+/?$", u))
+	if (length(m) != 1L || !nzchar(m)) {
+		return(basename(u))
 	}
-	ry <- httr::content(y, as="raw")
-	meta <- rawToChar(ry)
-	writeLines(meta, file.path(path, paste0(uname, ".json")))
+	sub("/$", "", m)
+}
 
-	uu <- paste0(uu, "/articles?page=1&page_size=100")
-	y <- httr::GET(uu)
-	if (y$status_code != 200) {
-		return(NULL)
+# Download files listed on one Figshare article JSON (parsed list/data.frame from /v2/articles/{id}).
+.download_figshare_article_files <- function(js, path, uname, meta_txt = NULL) {
+	this_url <- js$files$download_url
+	if (is.null(this_url) || length(this_url) == 0L) {
+		return(list(files = character(0), licenses = character(0), done = TRUE))
 	}
-	ry <- httr::content(y, as="raw")
-	m <- rawToChar(ry)
-	dir.create(file.path(path, "_more_metadata"), FALSE, FALSE)
-	writeLines(m, file.path(path, "_more_metadata", paste0(uname, "_files.json")))
-
-	js <- jsonlite::fromJSON(m)
-	urls <- js$url_public_api
-	if (length(urls) == 100) {
-		message("Houston, we have a problem")
-	}
-
-	licenses <- vector("list", length(urls))
+	this_file <- file.path(path, js$files$name)
+	lic <- if (!is.null(js$license$name)) js$license$name else NA_character_
 	done <- TRUE
-	files <- NULL
-	for (i in 1:length(urls)) {
-		d <- httr::GET(urls[i])
-		d <- httr::content(d, as="raw")
-		d <- rawToChar(d)
-		js <- jsonlite::fromJSON(d)
-		this_url <- js$files$download_url
-		if (is.null(this_url)) next
-		this_file <- file.path(path, js$files$name)
-		licenses[i] <- js$license$name
-		for (j in 1:length(this_file)) {
-			if (!file.exists(this_file[j])) {
-				writeLines(d, file.path(path, "_more_metadata", paste0(uname, "_", js$files$name[j], ".json")))
-				message(paste("   ", basename(this_file[j])))
-				utils::flush.console()
-				ok <- try(utils::download.file(this_url[j], this_file[j], mode="wb", quiet=TRUE))
-				if (inherits(ok, "try-error")) {
-					message("   download failed")
-					done <- FALSE
-					if (file.exists(this_file[j])) file.remove(this_file[j])
-				} 
-				files <- c(files, this_file[j])
-			}
+	files <- character(0)
+	dir.create(file.path(path, "_more_metadata"), FALSE, FALSE)
+	for (j in seq_along(this_file)) {
+		if (file.exists(this_file[j])) {
+			files <- c(files, this_file[j])
+			next
+		}
+		if (!is.null(meta_txt)) {
+			writeLines(meta_txt, file.path(path, "_more_metadata", paste0(uname, "_", basename(this_file[j]), ".json")))
+		}
+		message(paste("   ", basename(this_file[j])))
+		utils::flush.console()
+		ok <- try(utils::download.file(this_url[j], this_file[j], mode = "wb", quiet = TRUE), silent = TRUE)
+		if (inherits(ok, "try-error")) {
+			message("   download failed")
+			done <- FALSE
+			if (file.exists(this_file[j])) file.remove(this_file[j])
+		} else {
+			files <- c(files, this_file[j])
 		}
 	}
-	writeLines(unique(unlist(licenses)), file.path(path, "licenses.txt"))
-	
+	list(files = files, licenses = lic, done = done)
+}
+
+
+.download_figshare_files <- function(u, path, uname, unzip, keep_folders=TRUE){
+
+	pid <- .figshare_id(u)
+	is_article <- grepl("/articles?/", u, ignore.case = TRUE) ||
+		grepl("m9\\.figshare\\.", u, ignore.case = TRUE)
+	is_collection <- grepl("/collections?/", u, ignore.case = TRUE)
+
+	# Prefer URL type; if ambiguous, try article then collection.
+	try_article_first <- is_article || !is_collection
+	article_uu <- paste0("https://api.figshare.com/v2/articles/", pid)
+	collection_uu <- paste0("https://api.figshare.com/v2/collections/", pid)
+
+	licenses <- character(0)
+	files <- character(0)
+	done <- TRUE
+	api_uu <- NULL
+
+	if (try_article_first) {
+		y <- httr::GET(article_uu)
+		if (y$status_code == 200) {
+			api_uu <- article_uu
+			meta <- rawToChar(httr::content(y, as = "raw"))
+			writeLines(meta, file.path(path, paste0(uname, ".json")))
+			js <- jsonlite::fromJSON(meta)
+			res <- .download_figshare_article_files(js, path, uname, meta_txt = meta)
+			files <- res$files
+			licenses <- res$licenses
+			done <- res$done
+		}
+	}
+
+	if (is.null(api_uu)) {
+		y <- httr::GET(collection_uu)
+		if (y$status_code != 200) {
+			stop(
+				"Figshare download failed for id ", pid,
+				": neither /v2/articles/ nor /v2/collections/ returned HTTP 200.",
+				call. = FALSE
+			)
+		}
+		api_uu <- collection_uu
+		meta <- rawToChar(httr::content(y, as = "raw"))
+		writeLines(meta, file.path(path, paste0(uname, ".json")))
+
+		art_list_uu <- paste0(collection_uu, "/articles?page=1&page_size=100")
+		y <- httr::GET(art_list_uu)
+		if (y$status_code != 200) {
+			stop("Figshare collection article list failed (HTTP ", y$status_code, ").", call. = FALSE)
+		}
+		m <- rawToChar(httr::content(y, as = "raw"))
+		dir.create(file.path(path, "_more_metadata"), FALSE, FALSE)
+		writeLines(m, file.path(path, "_more_metadata", paste0(uname, "_files.json")))
+
+		js <- jsonlite::fromJSON(m)
+		urls <- js$url_public_api
+		if (length(urls) == 100) {
+			message("Houston, we have a problem")
+		}
+
+		for (i in seq_along(urls)) {
+			d <- httr::GET(urls[i])
+			d_txt <- rawToChar(httr::content(d, as = "raw"))
+			art <- jsonlite::fromJSON(d_txt)
+			res <- .download_figshare_article_files(art, path, uname, meta_txt = d_txt)
+			files <- c(files, res$files)
+			licenses <- c(licenses, res$licenses)
+			if (!isTRUE(res$done)) done <- FALSE
+		}
+	}
+
+	writeLines(unique(na.omit(as.character(licenses))), file.path(path, "licenses.txt"))
+
 	if (done) {
-		if (unzip) {
+		if (unzip && length(files) > 0L) {
 			junkpaths <- !isTRUE(keep_folders)
 			i <- grepl("\\.zip$", files)
 			if (any(i)) {
 				message("   unzipping")
 				ff <- files[i]
-				for (f in ff) utils::unzip(f, junkpaths=junkpaths, exdir=path)
+				for (f in ff) utils::unzip(f, junkpaths = junkpaths, exdir = path)
 			}
 			.dataverse_extract_archives(path, junkpaths = junkpaths)
 		}
-		writeOK(path, uu)
+		writeOK(path, api_uu)
 	}
 	list_files(path, TRUE)
 }

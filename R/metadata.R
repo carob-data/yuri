@@ -316,7 +316,7 @@ get_type <- function(x) {
 	if (all(c("help", "success", "result") %in% nms)) return("CKAN")
 	if ("_links" %in% nms) return("dryad")
 	if (all(c("created", "doi") %in% nms)) return("zenodo")
-	if (grepl("figshare", x$url)) return("figshare") 
+	if (grepl("figshare", paste(c(x$url, x$url_public_html), collapse = " "))) return("figshare") 
 	"other"
 }
 
