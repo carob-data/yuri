@@ -227,6 +227,11 @@ meta_zenodo <- function(x) {
 	creators <- x$metadata$creators
 	eml <- if (!is.null(creators$email)) creators$email else NULL
 	aa <- align_authors(creators$name, eml)
+	aff <- if (is.null(creators) || is.null(creators$affiliation)) {
+		NULL
+	} else {
+		unique(as.character(creators$affiliation))
+	}
 	data.frame(
 		license = get_license(x),
 		title = setv(x$metadata$title),
@@ -234,7 +239,7 @@ meta_zenodo <- function(x) {
 		authors_email = setp_emails(aa$emails),
 		publication = as.character(NA),
 		date_published = setv(x$metadata$publication_date),
-		data_organization = setp(unique(creators$affiliation)),
+		data_organization = setp(aff),
 		publisher = "zenodo.org",
 		version = setv(x$revision),
 		description = cleaner(setv(x$metadata$description)),
