@@ -173,8 +173,8 @@ get_authors <- function(x) {
 	if (is.null(anames)) {
 		r <- x$result
 		if (!is.null(r)) {
-			anames <- r$creator
-			emails <- r$creator_email
+			aut <- as.character(unlist(r$creator, use.names = FALSE))
+			aem <- as.character(unlist(r$creator_email, use.names = FALSE))
 			pkeys <- grep("^contributor_person$|^contributor_person_[0-9]+$", names(r), value=TRUE)
 			if (length(pkeys) > 0) {
 				pkeys <- pkeys[gtools::mixedorder(pkeys)]
@@ -185,8 +185,11 @@ get_authors <- function(x) {
 					v <- r[[k]]
 					if (is.null(v) || length(v) == 0) NA_character_ else as.character(v)[1]
 				}, character(1), USE.NAMES=FALSE)
-				anames <- c(anames, persons)
-				emails <- c(emails, pemails)
+				anames <- c(aut, persons)
+				emails <- c(aem, pemails)
+			} else {
+				anames <- aut
+				emails <- aem
 			}
 		}
 	}

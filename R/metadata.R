@@ -36,13 +36,14 @@ fix_authors <- function(x) {
 
 # Pair author names with emails (same length/order). Empty/missing emails
 # become NA; duplicate names keep the first occurrence.
+# CKAN/IITA placeholders (e.g. "Not applicable") are dropped from author names.
 align_authors <- function(names, emails = NULL) {
-	names <- as.character(names)
+	names <- as.character(unlist(names, use.names = FALSE))
 	n <- length(names)
 	if (is.null(emails)) {
 		emails <- rep(NA_character_, n)
 	} else {
-		emails <- as.character(emails)
+		emails <- as.character(unlist(emails, use.names = FALSE))
 		if (length(emails) < n) {
 			emails <- c(emails, rep(NA_character_, n - length(emails)))
 		}
@@ -50,8 +51,9 @@ align_authors <- function(names, emails = NULL) {
 	}
 	names <- trimws(gsub("^Dr\\.|^Prof\\.", "", names))
 	emails <- trimws(emails)
-	emails[!nzchar(emails) | tolower(emails) %in% c("na", "null", "none")] <- NA_character_
-	keep <- !is.na(names) & nzchar(names)
+	placeholder <- c("na", "null", "none", "not applicable", "n/a")
+	emails[!nzchar(emails) | tolower(emails) %in% placeholder] <- NA_character_
+	keep <- !is.na(names) & nzchar(names) & !(tolower(names) %in% placeholder)
 	names <- names[keep]
 	emails <- emails[keep]
 	i <- !duplicated(names)
@@ -171,9 +173,10 @@ meta_dataverse <- function(x) {
 meta_CKAN <- function(x) {
 
 	r <- x$result
-	aut <- r$creator
-	aem <- r$creator_email
+	aut <- as.character(unlist(r$creator, use.names = FALSE))
+	aem <- as.character(unlist(r$creator_email, use.names = FALSE))
 
+	# Append contributor_person entries; placeholders dropped in align_authors().
 	pkeys <- grep("^contributor_person$|^contributor_person_[0-9]+$", names(r), value=TRUE)
 	if (length(pkeys) > 0) {
 		pkeys <- pkeys[gtools::mixedorder(pkeys)]

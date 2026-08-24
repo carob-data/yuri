@@ -60,7 +60,7 @@ authenticate <- function(x) {
 
 
 filter_files <- function(x) { 
-	x <- grep("\\.json$|\\.pdf$|\\.doc$|\\.docx$|\\.zip$|\\.gz$|\\.7z$|\\.rar$|\\.tar$|\\.tgz$|\\.tar\\.gz$", x, value=TRUE, invert=TRUE)
+	x <- grep("\\.json$|\\.pdf$|\\.doc$|\\.docx$|\\.zip$|\\.gz$|\\.7z$|\\.rar$|\\.tar$|\\.tgz$|\\.tar\\.gz$|\\.rar$", x, value=TRUE, invert=TRUE)
 	# remove opened excel files
 	grep("/~$", x, fixed=TRUE, invert=TRUE, value=TRUE)
 }
