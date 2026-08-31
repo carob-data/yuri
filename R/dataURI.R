@@ -1126,12 +1126,13 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authenticati
 			keep_folders = keep_folders)
 	} else if (grepl("rothamsted", u)) {
 		ff <- .download_rothamsted_files(u, path, uname, unzip, keep_folders = keep_folders)
-	} else if (grepl("/dataset/", u)) {	
-		ff <- .download_ckan_files(u, baseu, path, uname, unzip, keep_folders = keep_folders)
+	} else if (grepl("figshare", u)) {
+		# Figshare dataset pages are /articles/dataset/<title>/<id>. hence needs to be checked before CKAN 
+		ff <- .download_figshare_files(u, path, uname, unzip, keep_folders = keep_folders)
 	} else if (grepl("zenodo", u)) {
 		ff <- .download_zenodo_files(u, path, uname, unzip, keep_folders = keep_folders)
-	} else if (grepl("figshare", u)) {
-		ff <- .download_figshare_files(u, path, uname, unzip, keep_folders = keep_folders)
+	} else if (grepl("/dataset/", u)) {	
+		ff <- .download_ckan_files(u, baseu, path, uname, unzip, keep_folders = keep_folders)
 	} else {
 		auth <- .auth_for_service(authentication, "DATAVERSE")
 		ff <- .download_dataverse_files(u, baseu, path, uname, domain, protocol, unzip, zipf,
