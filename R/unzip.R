@@ -68,8 +68,17 @@
 	if (any(i)) {
 		fgz <- files[i]
 		for (f in fgz) {
-			fext <- R.utils::gunzip(f, remove = FALSE, skip = TRUE)
+			fext <- try(R.utils::gunzip(f, remove = FALSE, skip = TRUE), silent = TRUE)
+			if (inherits(fext, "try-error")) {
+				warning("could not gunzip ", basename(f), ": ",
+					as.character(fext), call. = FALSE)
+				next
+			}
 			allf <- c(allf, fext)
+			## gzip of a zip (e.g. Dataverse foo.zip.gz) — unzip the gunzipped file
+			if (unzip_more && grepl("\\.(zip|7z|rar|tar|tgz)$", fext, ignore.case = TRUE)) {
+				allf <- c(allf, .dataverse_unzip(fext, path, unzip_more = unzip_more, junkpaths = junkpaths))
+			}
 		}
 	}
 
@@ -77,11 +86,11 @@
 }
 
 
-## After zip download: extract nested .7z, .rar, .gz, .tar, .tgz, .tar.gz until stable or max_iter.
+## After zip download: extract nested .zip, .7z, .rar, .gz, .tar, .tgz, .tar.gz until stable or max_iter.
 .dataverse_extract_archives <- function(path, unzip_more = TRUE, max_iter = 5L, junkpaths = TRUE) {
 	seen <- character(0)
 	for (iter in seq_len(max_iter)) {
-		fz <- list.files(path, pattern = "\\.7z$|\\.rar$|\\.gz$|\\.tar$|\\.tgz$|\\.tar\\.gz$", full.names = TRUE, ignore.case = TRUE)
+		fz <- list.files(path, pattern = "\\.zip$|\\.7z$|\\.rar$|\\.gz$|\\.tar$|\\.tgz$|\\.tar\\.gz$", full.names = TRUE, ignore.case = TRUE)
 		fz <- setdiff(fz, seen)
 		if (length(fz) == 0) {
 			break
