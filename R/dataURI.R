@@ -731,7 +731,7 @@ list_files <- function(path, recursive) {
 		}
 		#if (d$available[i] == "yes") { "active" ?
 		
-		if (.file_ignored(c(d$name[i], basename(outf)), ignore)) next
+		if (any(.file_ignored(c(d$name[i], basename(outf)), ignore))) next
 		if ((!overwrite) & file.exists(outf)) next
 		ok <- try(utils::download.file(d$url[i], outf, mode="wb", quiet=TRUE), silent=TRUE )
 		if (inherits(ok, "try-error")) {
