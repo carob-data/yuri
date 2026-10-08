@@ -11,7 +11,7 @@ Download the files associated with a URI and return the filenames.
 }
 
 \usage{
-dataURI(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authentication=NULL, keep_folders=TRUE)
+dataURI(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authentication=NULL, keep_folders=TRUE, ignore=NULL)
 }
  
 \arguments{
@@ -22,6 +22,7 @@ dataURI(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authentication=NULL, kee
   \item{filter}{logical. if \code{TRUE} files that probably do not have the primary data are filtered out (files ending on .pdf, .doc(x), .json)}
   \item{authentication}{optional named list of credentials for the data provider. May be a flat list of fields for the URI's provider (e.g. \code{list(token = "...", email = "...")}), or a service-keyed list like \code{\link{authenticate}} (e.g. \code{list(DATAVERSE = list(token = "..."), DRYAD = list(username = "...", password = "..."))}). Recognized fields depend on the provider (see Details). If \code{NULL}, credentials registered via \code{\link{authenticate}} and environment variables are used.}
   \item{keep_folders}{logical. if \code{TRUE} (default) and \code{unzip=TRUE}, preserve the directory structure inside zip archives. If \code{FALSE}, files are extracted into a flat folder (equivalent to \code{utils::unzip(..., junkpaths=TRUE)}). The returned file list always includes files in sub-directories.}
+  \item{ignore}{character. Basenames of files to skip (not downloaded when the repository lists files individually; not unzipped). E.g. \code{ignore = "file.zip"} for an invalid zip that would otherwise stop extraction. Can be a vector.}
 }
 
 \details{
@@ -34,6 +35,8 @@ For Dataverse, recognized authentication fields include \code{name} (or \code{us
 For Dryad, recognized fields are \code{username} (or \code{client_id}) and \code{password} (or \code{client_secret} / \code{secret}) — the OAuth client id and secret.
 
 Custom guestbook questions must be supplied in \code{answers} as a list of lists with \code{id} and \code{value} elements (see Dataverse API examples).
+
+A corrupt zip that is not listed in \code{ignore} stops the download. Files in \code{ignore} are not downloaded (when the repository lists files individually) and are not unzipped, so a known-bad zip can be skipped without aborting.
 }
 
 \value{

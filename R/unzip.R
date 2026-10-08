@@ -1,14 +1,42 @@
 
-.dataverse_unzip <- function(files, path, unzip_more=TRUE, junkpaths=TRUE) {
+.file_ignored <- function(x, ignore) {
+	if (length(x) == 0L) return(logical(0))
+	ign <- unique(basename(as.character(ignore)))
+	ign <- ign[!is.na(ign) & nzchar(ign)]
+	if (length(ign) == 0L) return(rep(FALSE, length(x)))
+	out <- tolower(basename(as.character(x))) %in% tolower(ign)
+	out[is.na(out)] <- FALSE
+	out
+}
+
+
+.safe_unzip <- function(zipfile, ..., ignore = NULL) {
+	out <- try(utils::unzip(zipfile, ...), silent = TRUE)
+	if (inherits(out, "try-error")) {
+		msg <- paste0("could not unzip ", basename(zipfile), ": ", as.character(out))
+		if (.file_ignored(zipfile, ignore)) {
+			warning(msg, call. = FALSE)
+			return(NULL)
+		}
+		stop(msg, call. = FALSE)
+	}
+	out
+}
+
+
+.dataverse_unzip <- function(files, path, unzip_more=TRUE, junkpaths=TRUE, ignore=NULL) {
 	allf <- NULL
 	files <- files[file.exists(files)]
+	files <- files[!.file_ignored(files, ignore)]
 	i <- grepl("zip$", files, ignore.case=TRUE)
 	if (any(i)) {
 		zipf <- files[i]
 		for (z in zipf) {
-			zf <- utils::unzip(z, list=TRUE)
+			zf <- .safe_unzip(z, list=TRUE, ignore = ignore)
+			if (is.null(zf)) next
 			zf <- zf$Name[zf$Name != "MANIFEST.TXT"]
 			zf <- grep("/$", zf, invert=TRUE, value=TRUE)
+			zf <- zf[!.file_ignored(zf, ignore)]
 			allf <- c(allf, zf)
 			if (unzip_more) {
 				ff <- list.files(path, recursive=TRUE, include.dirs=TRUE)
@@ -16,15 +44,19 @@
 				there <- on_disk %in% ff
 				if (!all(there)) {
 					todo <- zf[!there]
-					utils::unzip(z, todo, exdir = path, junkpaths = junkpaths)
-					## zipfiles in zipfile...
-					zipzip <- grep("\\.zip$", todo, ignore.case=TRUE, value=TRUE)
-					if (length(zipzip) > 0) {
-						zipzip <- file.path(path, if (isTRUE(junkpaths)) basename(zipzip) else zipzip)
-						for (zz in zipzip) {
-							utils::unzip(zz, exdir = path, junkpaths = junkpaths)
+					ok <- .safe_unzip(z, todo, exdir = path, junkpaths = junkpaths, ignore = ignore)
+					if (!is.null(ok)) {
+						## zipfiles in zipfile...
+						zipzip <- grep("\\.zip$", todo, ignore.case=TRUE, value=TRUE)
+						zipzip <- zipzip[!.file_ignored(zipzip, ignore)]
+						if (length(zipzip) > 0) {
+							zipzip <- file.path(path, if (isTRUE(junkpaths)) basename(zipzip) else zipzip)
+							for (zz in zipzip) {
+								.safe_unzip(zz, exdir = path, junkpaths = junkpaths, ignore = ignore)
+							}
+							listed <- .safe_unzip(zz, list=TRUE, ignore = ignore)
+							if (!is.null(listed)) allf <- c(allf, listed)
 						}
-						allf <- c(allf, utils::unzip(zz, list=TRUE))
 					}
 				}
 			}
@@ -76,8 +108,9 @@
 			}
 			allf <- c(allf, fext)
 			## gzip of a zip (e.g. Dataverse foo.zip.gz) — unzip the gunzipped file
-			if (unzip_more && grepl("\\.(zip|7z|rar|tar|tgz)$", fext, ignore.case = TRUE)) {
-				allf <- c(allf, .dataverse_unzip(fext, path, unzip_more = unzip_more, junkpaths = junkpaths))
+			if (unzip_more && grepl("\\.(zip|7z|rar|tar|tgz)$", fext, ignore.case = TRUE) &&
+				!.file_ignored(fext, ignore)) {
+				allf <- c(allf, .dataverse_unzip(fext, path, unzip_more = unzip_more, junkpaths = junkpaths, ignore = ignore))
 			}
 		}
 	}
@@ -87,17 +120,18 @@
 
 
 ## After zip download: extract nested .zip, .7z, .rar, .gz, .tar, .tgz, .tar.gz until stable or max_iter.
-.dataverse_extract_archives <- function(path, unzip_more = TRUE, max_iter = 5L, junkpaths = TRUE) {
+.dataverse_extract_archives <- function(path, unzip_more = TRUE, max_iter = 5L, junkpaths = TRUE, ignore = NULL) {
 	seen <- character(0)
 	for (iter in seq_len(max_iter)) {
 		fz <- list.files(path, pattern = "\\.zip$|\\.7z$|\\.rar$|\\.gz$|\\.tar$|\\.tgz$|\\.tar\\.gz$", full.names = TRUE, ignore.case = TRUE)
+		fz <- fz[!.file_ignored(fz, ignore)]
 		fz <- setdiff(fz, seen)
 		if (length(fz) == 0) {
 			break
 		}
 		seen <- c(seen, fz)
 		n0 <- length(list.files(path, recursive = TRUE, include.dirs = FALSE))
-		.dataverse_unzip(fz, path, unzip_more = unzip_more, junkpaths = junkpaths)
+		.dataverse_unzip(fz, path, unzip_more = unzip_more, junkpaths = junkpaths, ignore = ignore)
 		n1 <- length(list.files(path, recursive = TRUE, include.dirs = FALSE))
 		if (n1 <= n0) {
 			break

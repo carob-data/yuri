@@ -565,7 +565,7 @@ list_files <- function(path, recursive) {
 }
 
 
-.download_dataverse_files <- function(u, baseu, path, uname, domain, protocol, unzip, zipf, name_arg = NULL, email_arg = NULL, institute_arg = NULL, password_arg = NULL, keep_folders=TRUE) {
+.download_dataverse_files <- function(u, baseu, path, uname, domain, protocol, unzip, zipf, name_arg = NULL, email_arg = NULL, institute_arg = NULL, password_arg = NULL, keep_folders=TRUE, ignore=NULL) {
 	pid <- unlist(strsplit(u, "\\?"))[2]
 	uu <- paste0(baseu, "/api/datasets/:persistentId?", pid)
 	api_token <- .dataverse_resolve_api_token(password_arg)
@@ -632,6 +632,18 @@ list_files <- function(path, recursive) {
 	if (nrow(f) == 0) {
 		stop("no files!", call. = FALSE)
 	}
+	drop <- FALSE
+	for (col in intersect(c("filename", "originalFileName", "name", "label"), names(f))) {
+		drop <- drop | .file_ignored(f[[col]], ignore)
+	}
+	if (any(drop)) {
+		skipped <- unique(na.omit(as.character(f$filename[drop])))
+		message("   ignoring ", paste(skipped, collapse = ", "))
+		f <- f[!drop, , drop = FALSE]
+	}
+	if (nrow(f) == 0) {
+		stop("no files!", call. = FALSE)
+	}
 	gb_id <- .dataverse_dataset_guestbook_id(js)
 	guestbook_body <- NULL
 	if (!is.null(gb_id)) {
@@ -677,8 +689,8 @@ list_files <- function(path, recursive) {
 	}	
 	if (unzip) {
 		junkpaths <- !isTRUE(keep_folders)
-		ff <- .dataverse_unzip(zipf, path, junkpaths = junkpaths)
-		.dataverse_extract_archives(path, junkpaths = junkpaths)
+		ff <- .dataverse_unzip(zipf, path, junkpaths = junkpaths, ignore = ignore)
+		.dataverse_extract_archives(path, junkpaths = junkpaths, ignore = ignore)
 	}
 
 	writeOK(path, uu)
@@ -686,7 +698,7 @@ list_files <- function(path, recursive) {
 }
 
 
-.download_ckan_files <- function(u, baseu, path, uname, unzip, overwrite=TRUE, keep_folders=TRUE) {
+.download_ckan_files <- function(u, baseu, path, uname, unzip, overwrite=TRUE, keep_folders=TRUE, ignore=NULL) {
 	pid <- unlist(strsplit(u, "dataset/"))[2]
 	uu <- paste0(baseu, "/api/3/action/package_show?id=", pid)
 	y <- httr::GET(uu)
@@ -719,6 +731,7 @@ list_files <- function(path, recursive) {
 		}
 		#if (d$available[i] == "yes") { "active" ?
 		
+		if (.file_ignored(c(d$name[i], basename(outf)), ignore)) next
 		if ((!overwrite) & file.exists(outf)) next
 		ok <- try(utils::download.file(d$url[i], outf, mode="wb", quiet=TRUE), silent=TRUE )
 		if (inherits(ok, "try-error")) {
@@ -732,12 +745,8 @@ list_files <- function(path, recursive) {
 	if (done) {
 		if (unzip) {
 			junkpaths <- !isTRUE(keep_folders)
-			i <- grepl("\\zip$", files)
-			if (any(i)) {
-				ff <- files[i]
-				for (f in ff) utils::unzip(f, junkpaths=junkpaths, exdir=path)
-			}
-			.dataverse_extract_archives(path, junkpaths = junkpaths)
+			.dataverse_unzip(files, path, junkpaths = junkpaths, ignore = ignore)
+			.dataverse_extract_archives(path, junkpaths = junkpaths, ignore = ignore)
 		}
 		writeOK(path, uu)
 	}
@@ -777,7 +786,7 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 
 
 
-.download_dryad_files <- function(u, baseu, path, uname, unzip, username=NULL, password=NULL, keep_folders=TRUE){ 
+.download_dryad_files <- function(u, baseu, path, uname, unzip, username=NULL, password=NULL, keep_folders=TRUE, ignore=NULL){ 
 
 	pid <- gsub(":", "%253A", gsub("/", "%252F", unlist(strsplit(u, "dataset/"))[2]))
 	uu <- paste0(baseu, "/api/v2/datasets/", pid)
@@ -813,16 +822,16 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 		writeBin(httr::content(res, "raw"), outf)	
 		if (unzip) {
 			junkpaths <- !isTRUE(keep_folders)
-			utils::unzip(outf, exdir = file.path(path), junkpaths = junkpaths)
+			.safe_unzip(outf, exdir = file.path(path), junkpaths = junkpaths)
 			## nested .rar / .7z / .tar / .gz inside the Dryad zip
-			.dataverse_extract_archives(path, junkpaths = junkpaths)
+			.dataverse_extract_archives(path, junkpaths = junkpaths, ignore = ignore)
 		}
 		writeOK(path, uu)
 	}
 	list_files(path, TRUE)
 }
 
-.download_zenodo_files <- function(u, path, uname, unzip, keep_folders=TRUE){
+.download_zenodo_files <- function(u, path, uname, unzip, keep_folders=TRUE, ignore=NULL){
   
 #	pid <- gsub("https://zenodo.org/records/", "", u)
 #	uu <- paste0("zenodo.org/api/deposit/depositions/", pid, "/files")
@@ -847,6 +856,7 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 	#outf <- file.path(path, uname)
 	for (link in d) {
 		outf <- file.path(path, basename(gsub("/content", "", link)))
+		if (.file_ignored(outf, ignore)) next
 		ok <- try(utils::download.file(link, outf, mode="wb", quiet=TRUE))
 		if (inherits(ok, "try-error")) {
 			message(paste("cannot download", uname))
@@ -864,12 +874,8 @@ get_dryad_token <- function(username=NULL, password=NULL) {
 	if (done) {
 		if (unzip) {
 			junkpaths <- !isTRUE(keep_folders)
-			i <- grepl("\\zip$", files)
-			if (any(i)) {
-				ff <- files[i]
-				for (f in ff) utils::unzip(f, junkpaths=junkpaths, exdir=path)
-			}
-			.dataverse_extract_archives(path, junkpaths = junkpaths)
+			.dataverse_unzip(files, path, junkpaths = junkpaths, ignore = ignore)
+			.dataverse_extract_archives(path, junkpaths = junkpaths, ignore = ignore)
 		}
 		writeOK(path, uu)
 	}
@@ -889,7 +895,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 }
 
 # Download files listed on one Figshare article JSON (parsed list/data.frame from /v2/articles/{id}).
-.download_figshare_article_files <- function(js, path, uname, meta_txt = NULL) {
+.download_figshare_article_files <- function(js, path, uname, meta_txt = NULL, ignore = NULL) {
 	this_url <- js$files$download_url
 	if (is.null(this_url) || length(this_url) == 0L) {
 		return(list(files = character(0), licenses = character(0), done = TRUE))
@@ -900,6 +906,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 	files <- character(0)
 	dir.create(file.path(path, "_more_metadata"), FALSE, FALSE)
 	for (j in seq_along(this_file)) {
+		if (.file_ignored(this_file[j], ignore)) next
 		if (file.exists(this_file[j])) {
 			files <- c(files, this_file[j])
 			next
@@ -922,7 +929,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 }
 
 
-.download_figshare_files <- function(u, path, uname, unzip, keep_folders=TRUE){
+.download_figshare_files <- function(u, path, uname, unzip, keep_folders=TRUE, ignore=NULL){
 
 	pid <- .figshare_id(u)
 	is_article <- grepl("/articles?/", u, ignore.case = TRUE) ||
@@ -946,7 +953,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 			meta <- rawToChar(httr::content(y, as = "raw"))
 			writeLines(meta, file.path(path, paste0(uname, ".json")))
 			js <- jsonlite::fromJSON(meta)
-			res <- .download_figshare_article_files(js, path, uname, meta_txt = meta)
+			res <- .download_figshare_article_files(js, path, uname, meta_txt = meta, ignore = ignore)
 			files <- res$files
 			licenses <- res$licenses
 			done <- res$done
@@ -985,7 +992,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 			d <- httr::GET(urls[i])
 			d_txt <- rawToChar(httr::content(d, as = "raw"))
 			art <- jsonlite::fromJSON(d_txt)
-			res <- .download_figshare_article_files(art, path, uname, meta_txt = d_txt)
+			res <- .download_figshare_article_files(art, path, uname, meta_txt = d_txt, ignore = ignore)
 			files <- c(files, res$files)
 			licenses <- c(licenses, res$licenses)
 			if (!isTRUE(res$done)) done <- FALSE
@@ -1000,10 +1007,9 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 			i <- grepl("\\.zip$", files)
 			if (any(i)) {
 				message("   unzipping")
-				ff <- files[i]
-				for (f in ff) utils::unzip(f, junkpaths = junkpaths, exdir = path)
+				.dataverse_unzip(files[i], path, junkpaths = junkpaths, ignore = ignore)
 			}
-			.dataverse_extract_archives(path, junkpaths = junkpaths)
+			.dataverse_extract_archives(path, junkpaths = junkpaths, ignore = ignore)
 		}
 		writeOK(path, api_uu)
 	}
@@ -1011,7 +1017,7 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 }
 
 
-.download_rothamsted_files <- function(u, path, uname, unzip, keep_folders=TRUE) {
+.download_rothamsted_files <- function(u, path, uname, unzip, keep_folders=TRUE, ignore=NULL) {
 
 	uu <- gsub("dataset", "metadata", u)
 	bn <- basename(u)
@@ -1028,8 +1034,8 @@ download_size <- function(url) as.numeric(httr::HEAD(url)$headers[["content-leng
 		done <- TRUE
 		if (unzip) {
 			junkpaths <- !isTRUE(keep_folders)
-			utils::unzip(zipf, junkpaths=junkpaths, exdir=path)
-			.dataverse_extract_archives(path, junkpaths = junkpaths)
+			.safe_unzip(zipf, junkpaths=junkpaths, exdir=path)
+			.dataverse_extract_archives(path, junkpaths = junkpaths, ignore = ignore)
 		}
 		writeOK(path, uu)
 	}	
@@ -1050,11 +1056,14 @@ http_address <- function(uri) {
 }
 
 
-dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authentication=NULL, keep_folders=TRUE) {
+dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authentication=NULL, keep_folders=TRUE, ignore=NULL) {
 
 	uname <- yuri::simpleURI(uri)	
 	uri <- yuri::simpleURI(uname, reverse=TRUE, warn=FALSE)
 	junkpaths <- !isTRUE(keep_folders)
+	ignore <- unique(basename(as.character(ignore)))
+	ignore <- ignore[!is.na(ignore) & nzchar(ignore)]
+	if (length(ignore) == 0L) ignore <- NULL
 	
 	#uripath=TRUE
 	#if (uripath) 
@@ -1071,9 +1080,10 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authenticati
 	
 	if (cache && file.exists(file.path(path, "ok.txt"))) {
 		if (unzip) {
-			.dataverse_extract_archives(path, junkpaths = junkpaths)
+			.dataverse_extract_archives(path, junkpaths = junkpaths, ignore = ignore)
 		}
 		ff <- list_files(path, TRUE)
+		ff <- ff[!.file_ignored(ff, ignore)]
 		if (filter) ff <- filter_files(ff)
 		return(ff)
 	}
@@ -1081,11 +1091,12 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authenticati
 	zipf <- file.path(path, paste0(uname, ".zip"))
 	if (cache & file.exists(zipf)) {
 		zipf <- list.files(path, paste0(uname, ".*zip$"), full.names=TRUE)		
-		ff <- .dataverse_unzip(zipf, path, unzip, junkpaths = junkpaths)
+		ff <- .dataverse_unzip(zipf, path, unzip, junkpaths = junkpaths, ignore = ignore)
 		if (isTRUE(unzip)) {
-			.dataverse_extract_archives(path, junkpaths = junkpaths)
+			.dataverse_extract_archives(path, junkpaths = junkpaths, ignore = ignore)
 		}
 		ff <- list_files(path, TRUE)
+		ff <- ff[!.file_ignored(ff, ignore)]
 		if (filter) ff <- filter_files(ff)
 		return(ff)
 	}
@@ -1123,16 +1134,16 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authenticati
 		ff <- .download_dryad_files(u, baseu, path, uname, unzip,
 			username = .auth_field(auth, "username", "client_id"),
 			password = .auth_field(auth, "password", "client_secret", "secret"),
-			keep_folders = keep_folders)
+			keep_folders = keep_folders, ignore = ignore)
 	} else if (grepl("rothamsted", u)) {
-		ff <- .download_rothamsted_files(u, path, uname, unzip, keep_folders = keep_folders)
+		ff <- .download_rothamsted_files(u, path, uname, unzip, keep_folders = keep_folders, ignore = ignore)
 	} else if (grepl("figshare", u)) {
 		# Figshare dataset pages are /articles/dataset/<title>/<id>. hence needs to be checked before CKAN 
-		ff <- .download_figshare_files(u, path, uname, unzip, keep_folders = keep_folders)
+		ff <- .download_figshare_files(u, path, uname, unzip, keep_folders = keep_folders, ignore = ignore)
 	} else if (grepl("zenodo", u)) {
-		ff <- .download_zenodo_files(u, path, uname, unzip, keep_folders = keep_folders)
+		ff <- .download_zenodo_files(u, path, uname, unzip, keep_folders = keep_folders, ignore = ignore)
 	} else if (grepl("/dataset/", u)) {	
-		ff <- .download_ckan_files(u, baseu, path, uname, unzip, keep_folders = keep_folders)
+		ff <- .download_ckan_files(u, baseu, path, uname, unzip, keep_folders = keep_folders, ignore = ignore)
 	} else {
 		auth <- .auth_for_service(authentication, "DATAVERSE")
 		ff <- .download_dataverse_files(u, baseu, path, uname, domain, protocol, unzip, zipf,
@@ -1140,9 +1151,10 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authenticati
 			email_arg = .auth_field(auth, "email"),
 			institute_arg = .auth_field(auth, "institution", "institute"),
 			password_arg = .auth_field(auth, "token", "api_token", "password"),
-			keep_folders = keep_folders)
+			keep_folders = keep_folders, ignore = ignore)
 	}
 	# 
+	if (!is.null(ff)) ff <- ff[!.file_ignored(ff, ignore)]
 	if (filter) {
 		filter_files(ff)
 	} else {
