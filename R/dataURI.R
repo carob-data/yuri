@@ -4,6 +4,7 @@
 
 
 .yuri_environment <- new.env(parent=emptyenv())
+.yuri_environment$ipv4_hosts <- character()
 
 
 # Replaceable hint shown by yuri's authentication-related error messages.
@@ -158,14 +159,13 @@ list_files <- function(path, recursive) {
 }
 
 
-.dataverse_http_get_to_file <- function(url, dest, insecure, api_token) {
-	cfg <- if (isTRUE(insecure)) httr::config(ssl_verifypeer = 0L) else NULL
-	wd <- httr::write_disk(dest, overwrite = TRUE)
-	if (!is.null(api_token) && nzchar(api_token)) {
-		r <- httr::GET(url, cfg, wd, httr::add_headers(`X-Dataverse-key` = api_token))
+.dataverse_http_get_to_file <- function(url, dest, insecure, api_token, timeout = 300) {
+	hdr <- if (!is.null(api_token) && nzchar(api_token)) {
+		c(`X-Dataverse-key` = api_token)
 	} else {
-		r <- httr::GET(url, cfg, wd)
+		NULL
 	}
+	r <- .http_download(url, dest, insecure = insecure, headers = hdr, timeout = timeout)
 	# Harvard Dataverse often returns HTTP 202 with an empty body when the API is unavailable
 	if (r$status_code == 202L || r$status_code < 200L || r$status_code >= 300L) {
 		stop("Dataverse request failed (HTTP ", r$status_code, "): ", url, call. = FALSE)
@@ -197,34 +197,10 @@ list_files <- function(path, recursive) {
 .dataverse_fetch_dataset_json <- function(uu, tmpf, insecure_uu, api_token, domain) {
 	ok <- TRUE
 	err_detail <- NULL
-	if (!is.null(api_token) && nzchar(api_token)) {
-		got <- try(.dataverse_http_get_to_file(uu, tmpf, insecure_uu, api_token), silent = TRUE)
-		if (inherits(got, "try-error")) {
-			ok <- FALSE
-			err_detail <- conditionMessage(attr(got, "condition"))
-		}
-	} else if (insecure_uu) {
-		# temporary fix because WorldAgroFor https cert has expired
-		dl <- try(
-			utils::download.file(uu, tmpf, quiet = TRUE, method = "curl", extra = "-k", mode = "wb"),
-			silent = TRUE
-		)
-		if (inherits(dl, "try-error") || !isTRUE(dl == 0L)) {
-			ok <- FALSE
-			err_detail <- if (inherits(dl, "try-error")) conditionMessage(attr(dl, "condition")) else paste("download.file status", dl)
-		}
-	} else {
-		# Prefer httr so HTTP 202 / empty maintenance responses are visible
-		cfg <- NULL
-		wd <- httr::write_disk(tmpf, overwrite = TRUE)
-		r <- try(httr::GET(uu, cfg, wd), silent = TRUE)
-		if (inherits(r, "try-error")) {
-			ok <- FALSE
-			err_detail <- conditionMessage(attr(r, "condition"))
-		} else if (r$status_code == 202L || r$status_code < 200L || r$status_code >= 300L) {
-			ok <- FALSE
-			err_detail <- paste0("HTTP ", r$status_code)
-		}
+	got <- try(.dataverse_http_get_to_file(uu, tmpf, insecure_uu, api_token, timeout = 90), silent = TRUE)
+	if (inherits(got, "try-error")) {
+		ok <- FALSE
+		err_detail <- conditionMessage(attr(got, "condition"))
 	}
 
 	if (!ok || !file.exists(tmpf) || isTRUE(file.info(tmpf)$size < 1)) {
@@ -326,13 +302,7 @@ list_files <- function(path, recursive) {
 	on.exit(unlink(tmpf), add = TRUE)
 	gbu <- paste0(baseu, "/api/guestbooks/", guestbook_id)
 	insecure <- .dataverse_insecure_dl(uu, gbu)
-	if (!is.null(api_token) && nzchar(api_token)) {
-		.dataverse_http_get_to_file(gbu, tmpf, insecure, api_token)
-	} else if (insecure) {
-		utils::download.file(gbu, tmpf, quiet = TRUE, mode = "wb", method = "curl", extra = "-k")
-	} else {
-		utils::download.file(gbu, tmpf, quiet = TRUE, mode = "wb")
-	}
+	.dataverse_http_get_to_file(gbu, tmpf, insecure, api_token, timeout = 90)
 	gb_raw <- jsonlite::fromJSON(tmpf)
 	if (!identical(gb_raw$status, "OK")) {
 		stop("could not retrieve Dataverse guestbook ", guestbook_id)
@@ -505,29 +475,23 @@ list_files <- function(path, recursive) {
 }
 
 
-.dataverse_download_access_bundle <- function(fu, dest, uu, guestbook_body, api_token = NULL) {
+.dataverse_download_access_bundle <- function(fu, dest, uu, guestbook_body, api_token = NULL, timeout = 300) {
 	insecure <- .dataverse_insecure_dl(uu, fu)
 	if (is.null(guestbook_body)) {
-		if (!is.null(api_token) && nzchar(api_token)) {
-			.dataverse_http_get_to_file(fu, dest, insecure, api_token)
-		} else if (insecure) {
-			utils::download.file(fu, dest, quiet = TRUE, mode = "wb", method = "curl", extra = "-k")
-		} else {
-			utils::download.file(fu, dest, mode = "wb", quiet = TRUE)
-		}
+		.dataverse_http_get_to_file(fu, dest, insecure, api_token, timeout = timeout)
 		return(invisible(TRUE))
 	}
 	fu_post <- paste0(fu, "&signed=true")
 	body <- list(guestbookResponse = guestbook_body)
-	cfg <- if (insecure) httr::config(ssl_verifypeer = 0L) else NULL
 	post_h <- httr::add_headers(`Content-Type` = "application/json")
 	if (!is.null(api_token) && nzchar(api_token)) {
 		post_h <- httr::add_headers(`Content-Type` = "application/json", `X-Dataverse-key` = api_token)
 	}
-	r <- httr::POST(fu_post,
+	r <- .http_POST(fu_post,
 		body = jsonlite::toJSON(body, auto_unbox = TRUE),
 		post_h,
-		config = cfg
+		insecure = insecure,
+		timeout = 30
 	)
 	txt <- httr::content(r, as = "text", encoding = "UTF-8")
 	j <- try(jsonlite::fromJSON(txt), silent = TRUE)
@@ -554,12 +518,41 @@ list_files <- function(path, recursive) {
 	if (is.null(su) || !nzchar(su)) {
 		stop("Dataverse did not return a signed download URL after guestbook submission")
 	}
-	if (!is.null(api_token) && nzchar(api_token)) {
-		.dataverse_http_get_to_file(su, dest, insecure, api_token)
-	} else if (insecure) {
-		utils::download.file(su, dest, quiet = TRUE, mode = "wb", method = "curl", extra = "-k")
-	} else {
-		utils::download.file(su, dest, mode = "wb", quiet = TRUE)
+	.dataverse_http_get_to_file(su, dest, insecure, api_token, timeout = timeout)
+	invisible(TRUE)
+}
+
+
+.dataverse_file_download_name <- function(frow) {
+	for (col in c("originalFileName", "filename", "name", "label")) {
+		if (col %in% names(frow)) {
+			v <- as.character(frow[[col]])[1]
+			if (!is.na(v) && nzchar(v)) return(basename(v))
+		}
+	}
+	paste0("datafile_", frow$id[1])
+}
+
+
+.dataverse_try_access_bundle <- function(fu, dest, uu, guestbook_body, api_token = NULL, timeout = 90) {
+	ok <- try(
+		.dataverse_download_access_bundle(fu, dest, uu, guestbook_body, api_token = api_token, timeout = timeout),
+		silent = TRUE
+	)
+	if (!inherits(ok, "try-error") && file.exists(dest) && isTRUE(file.info(dest)$size > 22)) {
+		return(TRUE)
+	}
+	if (file.exists(dest)) unlink(dest)
+	FALSE
+}
+
+
+.dataverse_download_each_file <- function(f, protocol, domain, path, uu, guestbook_body, api_token) {
+	for (i in seq_len(nrow(f))) {
+		nm <- .dataverse_file_download_name(f[i, , drop = FALSE])
+		dest <- file.path(path, nm)
+		fu <- paste0(protocol, domain, "/api/access/datafile/", f$id[i], "?format=original")
+		.dataverse_download_access_bundle(fu, dest, uu, guestbook_body, api_token = api_token, timeout = 300)
 	}
 	invisible(TRUE)
 }
@@ -653,23 +646,16 @@ list_files <- function(path, recursive) {
 	if (sum(f$originalFileSize, na.rm=TRUE) < 10000000) {
 		files <- paste0(f$id, collapse = ",")
 		fu <- paste0(protocol, domain, "/api/access/datafiles/", files, "?format=original")
-		.dataverse_download_access_bundle(fu, zipf, uu, guestbook_body, api_token = api_token)
+		if (!.dataverse_try_access_bundle(fu, zipf, uu, guestbook_body, api_token = api_token)) {
+			message("Dataverse zip download failed; fetching files individually")
+			.dataverse_download_each_file(f, protocol, domain, path, uu, guestbook_body, api_token)
+			zipf <- NULL
+		}
 	} else {
-		#for (i in 1:nrow(f)) {
-		#	print(paste("part", i)); utils::flush.console()
-		#	fu <- paste0(protocol, domain, "/api/access/datafiles/", f$id[i], "?format=original")
-		#	zipi <- file.path(path, paste0(uname, "_", i, ".zip"))
-		#	utils::download.file(fu, zipi, mode="wb", quiet=TRUE)
-## temporary fix because WorldAgroFor https cert has expired
-##			utils::download.file(fu, zipi, quiet=TRUE, mode="wb", method="curl", extra="-k")
-		#	zipf <- c(zipf, zipi)
-		#}
-	
 		f$originalFileSize[is.na(f$originalFileSize)] <- 10000
 		i <- 1
 		zipf <- NULL
 		while(TRUE) {
-#			print(paste("part", i)); utils::flush.console()
 			if (!is.null(f$originalFileSize)) {
 				cs <- cumsum(f$originalFileSize)
 			} else {
@@ -680,16 +666,22 @@ list_files <- function(path, recursive) {
 			files <- paste0(f$id[k], collapse = ",")
 			fu <- paste0(protocol, domain, "/api/access/datafiles/", files, "?format=original")
 			zipi <- file.path(path, paste0(uname, "_", i, ".zip"))
-			.dataverse_download_access_bundle(fu, zipi, uu, guestbook_body, api_token = api_token)
+			if (.dataverse_try_access_bundle(fu, zipi, uu, guestbook_body, api_token = api_token)) {
+				zipf <- c(zipf, zipi)
+			} else {
+				message("Dataverse zip download failed; fetching files individually")
+				.dataverse_download_each_file(f[k, , drop = FALSE], protocol, domain, path, uu, guestbook_body, api_token)
+			}
 			f <- f[-k,]
-			zipf <- c(zipf, zipi)
 			if (nrow(f) == 0) break
 			i <- i + 1
 		}
-	}	
+	}
 	if (unzip) {
 		junkpaths <- !isTRUE(keep_folders)
-		ff <- .dataverse_unzip(zipf, path, junkpaths = junkpaths, ignore = ignore)
+		if (length(zipf) > 0L) {
+			ff <- .dataverse_unzip(zipf, path, junkpaths = junkpaths, ignore = ignore)
+		}
 		.dataverse_extract_archives(path, junkpaths = junkpaths, ignore = ignore)
 	}
 
@@ -1115,9 +1107,9 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authenticati
 	# For CIRAD / figshare
 	# if (grepl("18167|figshare", uri)) {
 	if (isTRUE(grepl("figshare", uri))) {
-		x <- httr::GET(uri, httr::add_headers("user-agent" = "Mozilla/5.0", "Cache-Control" = "no-cache"))
+		x <- .http_GET(uri, httr::add_headers("user-agent" = "Mozilla/5.0", "Cache-Control" = "no-cache"))
 	} else {
-		x <- httr::GET(uri)
+		x <- .http_GET(uri)
 	}
 
 	if (!x$status_code %in% c(200, 202, 307)) {

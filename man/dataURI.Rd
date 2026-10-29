@@ -36,6 +36,8 @@ For Dryad, recognized fields are \code{username} (or \code{client_id}) and \code
 
 Custom guestbook questions must be supplied in \code{answers} as a list of lists with \code{id} and \code{value} elements (see Dataverse API examples).
 
+If a request fails with a connection timeout (for example a host that is unreachable over IPv6), it is retried over IPv4. If a Dataverse multi-file zip endpoint still fails, files are fetched one at a time from \code{/api/access/datafile/\{id\}}.
+
 A corrupt zip that is not listed in \code{ignore} stops the download. Files in \code{ignore} are not downloaded (when the repository lists files individually) and are not unzipped, so a known-bad zip can be skipped without aborting.
 }
 
