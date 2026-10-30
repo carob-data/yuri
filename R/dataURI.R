@@ -690,6 +690,16 @@ list_files <- function(path, recursive) {
 }
 
 
+.ckan_url_ok <- function(u) {
+	# Some CKAN records store a bare filename as the resource URL
+	# (e.g. "http://pests_and_diseases_m.csv"). Those are not downloads.
+	if (length(u) != 1L || is.na(u) || !grepl("^https?://", u, ignore.case=TRUE)) return(FALSE)
+	host <- sub("^https?://([^/:]+).*$", "\\1", u, ignore.case=TRUE)
+	if (grepl("\\.(csv|xls|xlsx|pdf|zip|txt|doc|docx|rds|dta|sav|json)$", host, ignore.case=TRUE)) return(FALSE)
+	grepl("\\.", host)
+}
+
+
 .download_ckan_files <- function(u, baseu, path, uname, unzip, overwrite=TRUE, keep_folders=TRUE, ignore=NULL) {
 	pid <- unlist(strsplit(u, "dataset/"))[2]
 	uu <- paste0(baseu, "/api/3/action/package_show?id=", pid)
@@ -714,7 +724,7 @@ list_files <- function(path, recursive) {
 #		u <- file.path(baseu, "dataset", d$package_id[i], "resource", d$id[i], "download", d$name[i])
 #		#if (d$available[i] == "yes") { "active" ?
 #		outf <- file.path(path, d$name[i])
-		if (!is.null(d$url)) {
+		if (!is.null(d$url) && !is.na(d$url[i]) && nzchar(d$url[i])) {
 			u <- d$url[i]
 			outf <- file.path(path, basename(u))
 		} else {
@@ -722,10 +732,10 @@ list_files <- function(path, recursive) {
 			outf <- file.path(path, d$name[i])
 		}
 		#if (d$available[i] == "yes") { "active" ?
-		
+		if (!.ckan_url_ok(u)) next
 		if (any(.file_ignored(c(d$name[i], basename(outf)), ignore))) next
 		if ((!overwrite) & file.exists(outf)) next
-		ok <- try(utils::download.file(d$url[i], outf, mode="wb", quiet=TRUE), silent=TRUE )
+		ok <- try(utils::download.file(u, outf, mode="wb", quiet=TRUE), silent=TRUE )
 		if (inherits(ok, "try-error")) {
 			print("cannot download")
 			done <- FALSE
