@@ -560,6 +560,10 @@ list_files <- function(path, recursive) {
 
 .download_dataverse_files <- function(u, baseu, path, uname, domain, protocol, unzip, zipf, name_arg = NULL, email_arg = NULL, institute_arg = NULL, password_arg = NULL, keep_folders=TRUE, ignore=NULL) {
 	pid <- unlist(strsplit(u, "\\?"))[2]
+	# Some hosts (CIP) redirect to a page whose URL has no persistentId query.
+	if (is.na(pid) || !grepl("persistentId=", pid, fixed=TRUE)) {
+		pid <- paste0("persistentId=", yuri::simpleURI(uname, reverse=TRUE, warn=FALSE))
+	}
 	uu <- paste0(baseu, "/api/datasets/:persistentId?", pid)
 	api_token <- .dataverse_resolve_api_token(password_arg)
 
