@@ -68,13 +68,40 @@
 	if (any(i)) {
 		f7 <- files[i]
 		for (f in f7) {
-			fext <- try(archive::archive_extract(f, path), silent = TRUE)
-			if (inherits(fext, "try-error")) {
-				warning("could not extract ", basename(f), ": ",
-					as.character(fext), call. = FALSE)
+			a <- try(archive::archive(f), silent = TRUE)
+			if (inherits(a, "try-error") || is.null(a) || nrow(a) == 0L) {
+				fext <- try(archive::archive_extract(f, path), silent = TRUE)
+				if (inherits(fext, "try-error")) {
+					warning("could not extract ", basename(f), ": ",
+						as.character(fext), call. = FALSE)
+					next
+				}
+				allf <- c(allf, file.path(path, fext))
 				next
 			}
-			allf <- c(allf, file.path(path, fext))
+			ap <- as.character(a$path)
+			# Drop explicit directory entries (trailing slash, or 0-byte directory prefix)
+			# so libarchive does not fail with "Can't decompress an entry marked as a directory".
+			norm_ap <- gsub("\\\\", "/", ap)
+			dirs <- unique(dirname(norm_ap[grepl("/", norm_ap)]))
+			is_dir <- grepl("[/\\\\]$", ap) | (a$size == 0L & norm_ap %in% dirs)
+			ap <- ap[!is_dir]
+			ap <- ap[!.file_ignored(ap, ignore)]
+			if (length(ap) == 0L) next
+			allf <- c(allf, file.path(path, ap))
+			if (unzip_more) {
+				on_disk <- list.files(path, recursive = TRUE, include.dirs = FALSE)
+				norm_disk <- gsub("\\\\", "/", on_disk)
+				todo <- ap[!(gsub("\\\\", "/", ap) %in% norm_disk)]
+				if (length(todo) > 0L) {
+					fext <- try(archive::archive_extract(f, dir = path, files = todo), silent = TRUE)
+					if (inherits(fext, "try-error")) {
+						warning("could not extract ", basename(f), ": ",
+							as.character(fext), call. = FALSE)
+						next
+					}
+				}
+			}
 		}
 	}
 
