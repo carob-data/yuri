@@ -108,6 +108,7 @@ meta_dataverse <- function(x) {
 	i <- which(x$data$latestVersion$metadataBlocks$citation$fields$typeName == "dsDescription")
 	if (length(i) > 0) {
 		desc <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]][[1]]$value
+		if (length(desc) > 1) desc <- paste(desc, collapse="\n\n")
 	} else {
 		desc <- as.character(NA)
 	}

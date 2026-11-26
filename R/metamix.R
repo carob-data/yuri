@@ -136,6 +136,7 @@ get_description <- function(x) {
 	out <- NULL
 	if (length(i) > 0) {
 		out <- x$data$latestVersion$metadataBlocks$citation$fields$value[[i]][[1]]$value
+		if (length(out) > 1) out <- paste(out, collapse="\n\n")
 	}
 	if (is.null(out)) {
 		#ckan, zenodo, Rothamsted, dryad
