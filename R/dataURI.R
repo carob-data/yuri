@@ -577,9 +577,11 @@ list_files <- function(path, recursive) {
 	jsp <- jsonlite::toJSON(js, pretty=TRUE)
 	writeLines(jsp, file.path(path, paste0(uname, ".json")))
 	if (is.null(fjs)) {
+		extra <- if (is.list(js) && !is.null(js$message)) paste0(" Server message: ", js$message) else ""
 		stop(
 			"Dataverse dataset metadata had no file list for ", pid,
-			". Check that the URI is a dataset DOI (not a file-level ID).",
+			" (URL: ", uu, ").", extra,
+			" Check that the URI is a dataset DOI (not a file-level ID).",
 			call. = FALSE
 		)
 	}
@@ -1121,9 +1123,9 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authenticati
 	# For CIRAD / figshare
 	# if (grepl("18167|figshare", uri)) {
 	if (isTRUE(grepl("figshare", uri))) {
-		x <- .http_GET(uri, httr::add_headers("user-agent" = "Mozilla/5.0", "Cache-Control" = "no-cache"))
+		x <- .http_GET(uri, httr::add_headers("user-agent" = "Mozilla/5.0", "Cache-Control" = "no-cache"), insecure = TRUE)
 	} else {
-		x <- .http_GET(uri)
+		x <- .http_GET(uri, insecure = TRUE)
 	}
 
 	if (!x$status_code %in% c(200, 202, 307)) {
@@ -1132,6 +1134,9 @@ dataURI <- function(uri, path, cache=TRUE, unzip=TRUE, filter=TRUE, authenticati
 	}
 	u <- x$url
 	domain <- yuri:::.getdomain(u)
+	if (domain %in% c("doi.org", "dx.doi.org", "hdl.handle.net")) {
+		stop("URI did not resolve to a repository host (still on ", domain, "): ", uri, call. = FALSE)
+	}
 	protocol <- yuri:::.getprotocol(u)
 	baseu <- paste0(protocol, domain)
 	

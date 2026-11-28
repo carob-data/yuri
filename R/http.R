@@ -61,12 +61,10 @@
 		"--connect-timeout", "60",
 		"--max-time", as.character(max(60L, as.integer(timeout))),
 		"-o", dest)
-	wf <- NULL
 	if (isTRUE(write_info)) {
-		# @file so Windows cmd.exe does not eat %{http_code} as an env var
-		wf <- tempfile()
-		writeLines("%{http_code}\n%{url_effective}", wf)
-		args <- c(args, "-w", paste0("@", wf))
+		# system2() invokes curl directly (no shell), so pass -w inline;
+		# -w @file was only added in curl 7.75 and fails on older curl binaries.
+		args <- c(args, "-w", "%{http_code}\\n%{url_effective}")
 	}
 	if (isTRUE(insecure)) args <- c(args, "-k")
 	if (!is.null(headers)) {
@@ -77,10 +75,7 @@
 	}
 	args <- c(args, url)
 	errf <- tempfile()
-	on.exit({
-		unlink(errf)
-		if (!is.null(wf)) unlink(wf)
-	}, add = TRUE)
+	on.exit(unlink(errf), add = TRUE)
 	out <- suppressWarnings(system2(Sys.which("curl"), args,
 		stdout = if (isTRUE(write_info)) TRUE else FALSE, stderr = errf))
 	status <- attr(out, "status")
@@ -101,9 +96,12 @@
 	}
 	wr <- .curl_exe_run(url, dest, insecure = insecure, headers = headers,
 		timeout = timeout, write_info = TRUE)
-	http <- suppressWarnings(as.integer(wr[1]))
-	if (is.na(http)) http <- 200L
-	final <- if (length(wr) >= 2L && nzchar(wr[2])) wr[2] else url
+	http <- suppressWarnings(as.integer(trimws(wr[1])))
+	if (length(wr) < 2L || is.na(http) || http == 0L || !nzchar(trimws(wr[2]))) {
+		stop("curl IPv4 did not return HTTP status and effective URL for: ", url,
+			" (got: ", paste(wr, collapse = " | "), ")", call. = FALSE)
+	}
+	final <- trimws(wr[2])
 	if (!own_dest && (!file.exists(dest) || isTRUE(file.info(dest)$size < 1))) {
 		stop("curl IPv4 download returned an empty file: ", url, call. = FALSE)
 	}
@@ -149,8 +147,12 @@
 		if (!.http_is_connect_fail(r)) {
 			stop(conditionMessage(attr(r, "condition")), call. = FALSE)
 		}
-		.remember_ipv4(host)
-		.remember_ipv4(.host_from_error(r))
+		err_host <- .host_from_error(r)
+		if (!is.na(err_host)) {
+			.remember_ipv4(err_host)
+		} else {
+			.remember_ipv4(host)
+		}
 	}
 	r
 }
@@ -166,8 +168,12 @@
 	r <- try(.curl_exe_response(url, dest = dest, insecure = insecure,
 		headers = headers, timeout = timeout), silent = TRUE)
 	if (!inherits(r, "try-error") && !is.null(r)) {
-		.remember_ipv4(who)
-		.remember_ipv4(.url_host(r$url))
+		final_host <- .url_host(r$url)
+		if (!is.na(final_host) && !identical(final_host, who)) {
+			.remember_ipv4(final_host)
+		} else {
+			.remember_ipv4(who)
+		}
 	}
 	r
 }
